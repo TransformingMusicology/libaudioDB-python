@@ -4,9 +4,11 @@
 // see pyadb.py for the public classes
 // 
 // Created by Benjamin Fields on 2009-09-04.
-// Copyright (c) 2009 Goldsmith University of London. All rights reserved.
+// Copyright (c) 2009 Goldsmith University of London. 
+// Distributed and licensed under GPL2. See ../../license.txt for details.
 // 	
 #include <fcntl.h>
+#include <string.h>
 #include "Python.h"
 #include "audioDB_API.h"
 #include "numpy/arrayobject.h"
@@ -121,6 +123,46 @@ PyObject * _pyadb_power(PyObject *self, PyObject *args)
 	return Py_BuildValue("i", ok);
 	
 }
+/* insert feature data stored in a file */
+/* this is a bit gross, */
+/* should be replaced eventually by a numpy based feature.*/
+/* api call: */
+// struct adbinsert {
+//   const char *features;
+//   const char *power;
+//   const char *key;
+//   const char *times;
+// };
+// int audiodb_insert(adb_ptr mydb, adb_insert_ptr ins);
+PyObject * _pyadb_insertFromFile(PyObject *self, PyObject *args, PyObject *keywds)
+{
+	adb_ptr current_db;
+	adb_insert_ptr ins;
+	int ok;
+	const char *features;
+	const char *power = NULL;
+	const char *key = NULL;
+	const char *times = NULL;
+	PyObject * incoming = 0;
+	static char *kwlist[]  = { "db", "features", "power", "key", "times" , NULL};
+	
+	ok =  PyArg_ParseTupleAndKeywords(args, keywds, "Os|sss", kwlist, &incoming, &features, &power, &key, &times);
+	if (!ok){return NULL;}
+	
+	current_db = (adb_ptr)PyCObject_AsVoidPtr(incoming);
+	ins = (adb_insert_ptr)malloc(sizeof(adb_insert_t));
+	ins->features = features;
+	ins->power = power;
+	ins->key = key;
+	ins->times = times;
+	printf("features::%s\npower::%s\nkey::%s\ntimes::%s\n", ins->features, ins->power, ins->key, ins->times);
+	ok = audiodb_insert(current_db, ins);
+	return Py_BuildValue("i", ok);
+	
+}
+
+
+
 
 /* close a database */
 /* api call: */
@@ -146,6 +188,9 @@ static PyMethodDef _pyadbMethods[] =
 	  "_pyadb_l2norm(adb_ptr)->int return code (0 for sucess)"},
 	{ "_pyadb_power", _pyadb_power, METH_VARARGS,
 	  "_pyadb_power(adb_ptr)->int return code (0 for sucess)"},
+	{ "_pyadb_insertFromFile", _pyadb_insertFromFile, METH_VARARGS | METH_KEYWORDS,
+	  "_pyadb_insertFromFile(adb_ptr, features=featureFile, [power=powerfile | key=keystring | times=timingFile])->\
+	int return code (0 for sucess)"},
 	{NULL,NULL, 0, NULL}
 };
 
