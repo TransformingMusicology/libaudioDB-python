@@ -162,7 +162,6 @@ PyObject * _pyadb_insertFromFile(PyObject *self, PyObject *args, PyObject *keywd
 	
 }
 
-
 /* base query.  The nomenclature here is about a far away as pythonic as is possible. 
  * This should be taken care of via the higher level python structure
  * returns a dict that should be result ordered and key = result key
@@ -184,7 +183,7 @@ PyObject * _pyadb_queryFromKey(PyObject *self, PyObject *args, PyObject *keywds)
 	const char *key;
 	const char *accuMode = "db";
 	const char *distMode = "dot";
-	const char *errMsg = NULL;
+	const char *resFmt = "dict";
 	uint32_t hop = 0;
 	double radius = 0;
 	double absThres = 0; 
@@ -205,14 +204,15 @@ PyObject * _pyadb_queryFromKey(PyObject *self, PyObject *args, PyObject *keywds)
 								"accumulation",
 								"distance",
 								"npoints",//nearest neighbor points per track
-								"ntracks",//I don't know what this one is... Maybe number of results...
+								"ntracks",
 								"includeKeys",
 								"excludeKeys",
 								"radius",
 								"absThres",
 								"relThres",
 								"durRatio",
-								"hopSize"
+								"hopSize",
+								"resFmt"
 								};
 	spec = (adb_query_spec_t *)malloc(sizeof(adb_query_spec_t));
 	spec->qid.datum = (adb_datum_t *)malloc(sizeof(adb_datum_t));
@@ -225,7 +225,7 @@ PyObject * _pyadb_queryFromKey(PyObject *self, PyObject *args, PyObject *keywds)
 	spec->params.ntracks = 100;//number of results returned in db mode
 	spec->refine.flags = 0;
 	
-	ok =  PyArg_ParseTupleAndKeywords(args, keywds, "Os|iiiissIIOOddddI", kwlist, 
+	ok =  PyArg_ParseTupleAndKeywords(args, keywds, "Os|iiiissIIOOddddIs", kwlist, 
 												&incoming, &key, 
 												&spec->qid.sequence_length, 
 												&spec->qid.sequence_start, 
@@ -234,7 +234,8 @@ PyObject * _pyadb_queryFromKey(PyObject *self, PyObject *args, PyObject *keywds)
 												&spec->params.npoints,
 												&spec->params.ntracks,
 												&includeKeys, &excludeKeys,
-												&radius, &absThres, &relThres, &durRatio, &hop
+												&radius, &absThres, &relThres, &durRatio, &hop,
+												&resFmt
 												);
 	
 	if (!ok) {return NULL;}
@@ -255,7 +256,8 @@ PyObject * _pyadb_queryFromKey(PyObject *self, PyObject *args, PyObject *keywds)
 	} else if (strcmp(accuMode,"one2one")){
 		spec->params.accumulation = ADB_ACCUMULATION_ONE_TO_ONE;
 	} else{
-		//error dump
+		PyErr_SetString(PyExc_ValueError, 
+			"Poorly specified distance mode. distance must either be \'db\', \'track\' or  \'one2one\'.\n");
 		return NULL;
 	}
 	if (strcmp(distMode, "dot")){
@@ -265,7 +267,8 @@ PyObject * _pyadb_queryFromKey(PyObject *self, PyObject *args, PyObject *keywds)
 	}else if (strcmp(distMode, "euclidean")){
 		spec->params.distance = ADB_DISTANCE_EUCLIDEAN;
 	}else{
-		//error dump
+		PyErr_SetString(PyExc_ValueError, 
+			"Poorly specified distance mode. distance must either be \'dot\', \'eucNorm\' or  \'euclidean\'.\n");
 		return NULL;
 	}
 	
@@ -273,7 +276,7 @@ PyObject * _pyadb_queryFromKey(PyObject *self, PyObject *args, PyObject *keywds)
 	//include/exclude keys
 	if (includeKeys){
 		if (!PyList_Check(includeKeys)){
-			//error!
+			PyErr_SetString(PyExc_TypeError, "Include keys must be specified as a list of strings.\n");
 			return NULL;
 		}
 		spec->refine.flags = spec->refine.flags | ADB_REFINE_INCLUDE_KEYLIST;
@@ -283,14 +286,14 @@ PyObject * _pyadb_queryFromKey(PyObject *self, PyObject *args, PyObject *keywds)
 			 if (PyString_Check(PyList_GetItem(includeKeys, (Py_ssize_t)i))){
 				spec->refine.include.keys[i] = PyString_AsString(PyList_GetItem(includeKeys, (Py_ssize_t)i));
 			}else{
-				//bad string no cookie!
+				PyErr_SetString(PyExc_TypeError, "Include keys must each be specified as a string.\nFound one that was not.\n");
 				return NULL;
 			}
 		}
 	}
 	if (excludeKeys){
 		if (!PyList_Check(excludeKeys)){
-			//error!
+			PyErr_SetString(PyExc_TypeError, "Exclude keys must be specified as a list of strings.\n");
 			return NULL;
 		}
 		spec->refine.flags = spec->refine.flags | ADB_REFINE_EXCLUDE_KEYLIST;
@@ -300,7 +303,7 @@ PyObject * _pyadb_queryFromKey(PyObject *self, PyObject *args, PyObject *keywds)
 			 if (PyString_Check(PyList_GetItem(excludeKeys, (Py_ssize_t)i))){
 				spec->refine.exclude.keys[i] = PyString_AsString(PyList_GetItem(excludeKeys, (Py_ssize_t)i));
 			}else{
-				//bad string no cookie!
+				PyErr_SetString(PyExc_TypeError, "Exclude keys must each be specified as a string.\nFound one that was not.\n");
 				return NULL;
 			}
 		}
@@ -341,46 +344,68 @@ PyObject * _pyadb_queryFromKey(PyObject *self, PyObject *args, PyObject *keywds)
 		PyErr_SetString(PyExc_RuntimeError, "Encountered an error while running the actual query.\n");
 		return NULL;
 		}
-	outgoing  = PyDict_New();
-	for (i=0;i<result->nresults;i++){
-		thisKey = PyString_FromString(result->results[i].key);
-		if (!PyDict_Contains(outgoing, thisKey)){
-			newBits =  Py_BuildValue("[(dII)]",
+	if(strcmp(resFmt, "dict")==0){
+		outgoing  = PyDict_New();
+		for (i=0;i<result->nresults;i++){
+			thisKey = PyString_FromString(result->results[i].key);
+			if (!PyDict_Contains(outgoing, thisKey)){
+				newBits =  Py_BuildValue("[(dII)]",
+											result->results[i].dist, 
+											result->results[i].qpos, 
+											result->results[i].ipos);
+				if (PyDict_SetItem(outgoing, thisKey,newBits)){
+					printf("key : %s\ndist : %f\nqpos : %i\nipos : %i\n", result->results[i].key, result->results[i].dist, result->results[i].qpos, result->results[i].ipos);
+					PyErr_SetString(PyExc_AttributeError, "Error adding a tuple to the result dict\n");
+					Py_XDECREF(newBits);
+					return NULL;
+				}
+				Py_DECREF(newBits);
+			}else {
+				//the key already has a value, so we need to fetch the value, confirm it's a list and append another tuple to it.
+				currentValue = PyDict_GetItem(outgoing, thisKey);
+				if (!PyList_Check(currentValue)){
+					PyErr_SetString(PyExc_TypeError, "The result dictionary appears to be malformed.\n");
+					return NULL;
+				}
+				newBits = Py_BuildValue("dII",result->results[i].dist, 
+											result->results[i].qpos, 
+											result->results[i].ipos);
+				if (PyList_Append(currentValue,  newBits)){
+					//error msg here
+					Py_XDECREF(newBits);
+					return NULL;
+				}
+				if (PyDict_SetItem(outgoing, thisKey, newBits)){
+					PyErr_SetString(PyExc_AttributeError, "Error adding a tuple to the result dict\n");
+					Py_XDECREF(newBits);
+					return NULL;
+				}
+				Py_DECREF(newBits);
+		
+			}
+		}
+	}else if(strcmp(resFmt, "list")==0){
+		outgoing  = PyList_New((Py_ssize_t)0);
+		for (i=0;i<result->nresults;i++){
+			newBits = Py_BuildValue("sdII",result->results[i].key,
 										result->results[i].dist, 
 										result->results[i].qpos, 
 										result->results[i].ipos);
-			if (PyDict_SetItem(outgoing, thisKey,newBits)){
-				printf("key : %s\ndist : %f\nqpos : %i\nipos : %i\n", result->results[i].key, result->results[i].dist, result->results[i].qpos, result->results[i].ipos);
-				PyErr_SetString(PyExc_AttributeError, "Error adding a tuple to the result dict\n");
-				// PyObject_Print(newBits, STDOUT, Py_PRINT_RAW);
-				Py_XDECREF(newBits);
-				return NULL;
-			}
-			Py_DECREF(newBits);
-		}else {
-			//the key already has a value, so we need to fetch the value, confirm it's a list and append another tuple to it.
-			currentValue = PyDict_GetItem(outgoing, thisKey);
-			if (!PyList_Check(currentValue)){
-				//add some error msg...
-				return NULL;
-			}
-			newBits = Py_BuildValue("dII",result->results[i].dist, 
-										result->results[i].qpos, 
-										result->results[i].ipos);
-			if (PyList_Append(currentValue,  newBits)){
+			if (PyList_Append(outgoing,  newBits)){
 				//error msg here
 				Py_XDECREF(newBits);
 				return NULL;
 			}
-			if (PyDict_SetItem(outgoing, thisKey, newBits)){
-				PyErr_SetString(PyExc_AttributeError, "Error adding a tuple to the result dict\n");
-				// PyObject_Print(newBits, STDOUT, Py_PRINT_RAW);
-				Py_XDECREF(newBits);
-				return NULL;
-			}
 			Py_DECREF(newBits);
-			
 		}
+		if(PyList_Reverse(outgoing)){//need to do this as things come off the accumulator backward.
+			printf("the reverse failed, hopefully a sensable error will follow.\nIf not, fix it.\n");
+			return NULL;
+			}
+	}else{
+		PyErr_SetString(PyExc_ValueError, 
+			"Poorly specified result mode. Result must be either \'dist\' or \'list\'.\n");
+		return NULL;
 	}
 	if (!audiodb_query_free_results(current_db, spec, result)){
 		printf("bit of trouble freeing the result and spec...\ncheck for leaks.");
@@ -391,11 +416,6 @@ PyObject * _pyadb_queryFromKey(PyObject *self, PyObject *args, PyObject *keywds)
 	
 	
 }
-
-
-
-
-
 
 
 
