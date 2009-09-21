@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include "Python.h"
+#include "structmember.h"
 #include "audioDB_API.h"
 #include "numpy/arrayobject.h"
 
@@ -102,7 +103,7 @@ PyObject * _pyadb_l2norm(PyObject *self, PyObject *args)
 	current_db = (adb_ptr)PyCObject_AsVoidPtr(incoming);
 	
 	ok = audiodb_l2norm(current_db);
-	return Py_BuildValue("i", ok);
+	return PyBool_FromLong(ok-1);
 	
 }
 
@@ -120,7 +121,7 @@ PyObject * _pyadb_power(PyObject *self, PyObject *args)
 	current_db = (adb_ptr)PyCObject_AsVoidPtr(incoming);
 	
 	ok = audiodb_power(current_db);
-	return Py_BuildValue("i", ok);
+	return PyBool_FromLong(ok-1);
 	
 }
 /* insert feature data stored in a file */
@@ -155,11 +156,246 @@ PyObject * _pyadb_insertFromFile(PyObject *self, PyObject *args, PyObject *keywd
 	ins->power = power;
 	ins->key = key;
 	ins->times = times;
-	printf("features::%s\npower::%s\nkey::%s\ntimes::%s\n", ins->features, ins->power, ins->key, ins->times);
+	//printf("features::%s\npower::%s\nkey::%s\ntimes::%s\n", ins->features, ins->power, ins->key, ins->times);
 	ok = audiodb_insert(current_db, ins);
-	return Py_BuildValue("i", ok);
+	return PyBool_FromLong(ok-1);
 	
 }
+
+
+/* base query.  The nomenclature here is about a far away as pythonic as is possible. 
+ * This should be taken care of via the higher level python structure
+ * returns a dict that should be result ordered and key = result key
+ * and value is a list of tuples one per result associated with that key, of the form:
+ *   (dist, qpos, ipos)
+ * Note as well that this is by no means the most efficient way to cast from C, simply the most direct
+ * and what it lacks in effeciency it gains in python side access.  It remains to be seen if this is 
+ * a sensible trade.
+ * api call:
+ * adb_query_results_t *audiodb_query_spec(adb_t *, const adb_query_spec_t *);
+ ***/
+PyObject * _pyadb_queryFromKey(PyObject *self, PyObject *args, PyObject *keywds)
+{
+	adb_ptr current_db;
+	adb_query_spec_t *spec;
+	adb_query_results_t *result;
+	int ok, exhaustive, falsePositives;
+	uint32_t i;
+	const char *key;
+	const char *accuMode = "db";
+	const char *distMode = "dot";
+	const char *errMsg = NULL;
+	uint32_t hop = 0;
+	double radius = 0;
+	double absThres = 0; 
+	double relThres = 0; 
+	double durRatio = 0;
+	PyObject *includeKeys = NULL;
+	PyObject *excludeKeys = NULL;
+	PyObject *incoming = 0;
+	PyObject *outgoing = NULL;
+	PyObject *thisKey = NULL;
+	PyObject *currentValue = 0;
+	PyObject *newBits = 0;
+	static char *kwlist[]  = { "db", "key", 
+								"seqLength", 
+								"seqStart", 
+								"exhaustive", 
+								"falsePositives",
+								"accumulation",
+								"distance",
+								"npoints",//nearest neighbor points per track
+								"ntracks",//I don't know what this one is... Maybe number of results...
+								"includeKeys",
+								"excludeKeys",
+								"radius",
+								"absThres",
+								"relThres",
+								"durRatio",
+								"hopSize"
+								};
+	spec = (adb_query_spec_t *)malloc(sizeof(adb_query_spec_t));
+	spec->qid.datum = (adb_datum_t *)malloc(sizeof(adb_datum_t));
+	result = (adb_query_results_t *)malloc(sizeof(adb_query_results_t));
+	
+	spec->qid.sequence_length = 16;
+	spec->qid.sequence_start = 0;
+	spec->qid.flags = 0;
+	spec->params.npoints = 1;
+	spec->params.ntracks = 100;//number of results returned in db mode
+	spec->refine.flags = 0;
+	
+	ok =  PyArg_ParseTupleAndKeywords(args, keywds, "Os|iiiissIIOOddddI", kwlist, 
+												&incoming, &key, 
+												&spec->qid.sequence_length, 
+												&spec->qid.sequence_start, 
+												&exhaustive, &falsePositives,
+												&accuMode,&distMode,
+												&spec->params.npoints,
+												&spec->params.ntracks,
+												&includeKeys, &excludeKeys,
+												&radius, &absThres, &relThres, &durRatio, &hop
+												);
+	
+	if (!ok) {return NULL;}
+	current_db = (adb_ptr)PyCObject_AsVoidPtr(incoming);
+	
+	if (exhaustive){
+		spec->qid.flags = spec->qid.flags | ADB_QID_FLAG_EXHAUSTIVE;
+	}
+	if (falsePositives){
+		spec->qid.flags = spec->qid.flags | ADB_QID_FLAG_ALLOW_FALSE_POSITIVES;
+	}
+	
+	//set up spec->params
+	if (strcmp(accuMode,"db")){
+		spec->params.accumulation = ADB_ACCUMULATION_DB;
+	} else if (strcmp(accuMode,"track")){
+		spec->params.accumulation = ADB_ACCUMULATION_PER_TRACK;
+	} else if (strcmp(accuMode,"one2one")){
+		spec->params.accumulation = ADB_ACCUMULATION_ONE_TO_ONE;
+	} else{
+		//error dump
+		return NULL;
+	}
+	if (strcmp(distMode, "dot")){
+		spec->params.distance = ADB_DISTANCE_DOT_PRODUCT;
+	}else if (strcmp(distMode, "eucNorm")){
+		spec->params.distance = ADB_DISTANCE_EUCLIDEAN_NORMED;
+	}else if (strcmp(distMode, "euclidean")){
+		spec->params.distance = ADB_DISTANCE_EUCLIDEAN;
+	}else{
+		//error dump
+		return NULL;
+	}
+	
+	//set up spec->refine
+	//include/exclude keys
+	if (includeKeys){
+		if (!PyList_Check(includeKeys)){
+			//error!
+			return NULL;
+		}
+		spec->refine.flags = spec->refine.flags | ADB_REFINE_INCLUDE_KEYLIST;
+		spec->refine.include.nkeys = (uint32_t)PyList_Size(includeKeys);
+		spec->refine.include.keys = (const char **)calloc(sizeof(const char *), spec->refine.include.nkeys);
+		for (i=0;i<spec->refine.include.nkeys;i++){
+			 if (PyString_Check(PyList_GetItem(includeKeys, (Py_ssize_t)i))){
+				spec->refine.include.keys[i] = PyString_AsString(PyList_GetItem(includeKeys, (Py_ssize_t)i));
+			}else{
+				//bad string no cookie!
+				return NULL;
+			}
+		}
+	}
+	if (excludeKeys){
+		if (!PyList_Check(excludeKeys)){
+			//error!
+			return NULL;
+		}
+		spec->refine.flags = spec->refine.flags | ADB_REFINE_EXCLUDE_KEYLIST;
+		spec->refine.exclude.nkeys = (uint32_t)PyList_Size(excludeKeys);
+		spec->refine.exclude.keys = (const char **)calloc(sizeof(const char *), spec->refine.exclude.nkeys);
+		for (i=0;i<spec->refine.exclude.nkeys;i++){
+			 if (PyString_Check(PyList_GetItem(excludeKeys, (Py_ssize_t)i))){
+				spec->refine.exclude.keys[i] = PyString_AsString(PyList_GetItem(excludeKeys, (Py_ssize_t)i));
+			}else{
+				//bad string no cookie!
+				return NULL;
+			}
+		}
+	}
+	//the rest of spec->refine 
+	if (radius){
+		spec->refine.flags = spec->refine.flags | ADB_REFINE_RADIUS;
+		spec->refine.radius = radius;
+	}
+	if (absThres){
+		spec->refine.flags = spec->refine.flags | ADB_REFINE_ABSOLUTE_THRESHOLD;
+		spec->refine.absolute_threshold = absThres;
+	}
+	if (relThres){
+		spec->refine.flags = spec->refine.flags | ADB_REFINE_RELATIVE_THRESHOLD;
+		spec->refine.relative_threshold = relThres;
+	}
+	if (durRatio){
+		spec->refine.flags = spec->refine.flags | ADB_REFINE_DURATION_RATIO;
+		spec->refine.duration_ratio = durRatio;
+	}
+	if (hop){
+		spec->refine.flags = spec->refine.flags | ADB_REFINE_HOP_SIZE;
+		spec->refine.hopsize = hop;
+	}
+	//setup the datum
+	spec->qid.datum->data = NULL;
+	spec->qid.datum->power = NULL;
+	spec->qid.datum->times = NULL;
+	//grab the datum from the key
+	ok = audiodb_retrieve_datum(current_db, key, spec->qid.datum);
+	if (ok != 0){
+		PyErr_SetString(PyExc_RuntimeError, "Encountered an error while trying to retrieve the data associated with the passed key.\n");
+		return NULL;
+	}
+	result = audiodb_query_spec(current_db, spec);
+	if (result == NULL){
+		PyErr_SetString(PyExc_RuntimeError, "Encountered an error while running the actual query.\n");
+		return NULL;
+		}
+	outgoing  = PyDict_New();
+	for (i=0;i<result->nresults;i++){
+		thisKey = PyString_FromString(result->results[i].key);
+		if (!PyDict_Contains(outgoing, thisKey)){
+			newBits =  Py_BuildValue("[(dII)]",
+										result->results[i].dist, 
+										result->results[i].qpos, 
+										result->results[i].ipos);
+			if (PyDict_SetItem(outgoing, thisKey,newBits)){
+				printf("key : %s\ndist : %f\nqpos : %i\nipos : %i\n", result->results[i].key, result->results[i].dist, result->results[i].qpos, result->results[i].ipos);
+				PyErr_SetString(PyExc_AttributeError, "Error adding a tuple to the result dict\n");
+				// PyObject_Print(newBits, STDOUT, Py_PRINT_RAW);
+				Py_XDECREF(newBits);
+				return NULL;
+			}
+			Py_DECREF(newBits);
+		}else {
+			//the key already has a value, so we need to fetch the value, confirm it's a list and append another tuple to it.
+			currentValue = PyDict_GetItem(outgoing, thisKey);
+			if (!PyList_Check(currentValue)){
+				//add some error msg...
+				return NULL;
+			}
+			newBits = Py_BuildValue("dII",result->results[i].dist, 
+										result->results[i].qpos, 
+										result->results[i].ipos);
+			if (PyList_Append(currentValue,  newBits)){
+				//error msg here
+				Py_XDECREF(newBits);
+				return NULL;
+			}
+			if (PyDict_SetItem(outgoing, thisKey, newBits)){
+				PyErr_SetString(PyExc_AttributeError, "Error adding a tuple to the result dict\n");
+				// PyObject_Print(newBits, STDOUT, Py_PRINT_RAW);
+				Py_XDECREF(newBits);
+				return NULL;
+			}
+			Py_DECREF(newBits);
+			
+		}
+	}
+	if (!audiodb_query_free_results(current_db, spec, result)){
+		printf("bit of trouble freeing the result and spec...\ncheck for leaks.");
+	}
+	
+	return outgoing;
+	
+	
+	
+}
+
+
+
+
+
 
 
 
@@ -188,9 +424,34 @@ static PyMethodDef _pyadbMethods[] =
 	  "_pyadb_l2norm(adb_ptr)->int return code (0 for sucess)"},
 	{ "_pyadb_power", _pyadb_power, METH_VARARGS,
 	  "_pyadb_power(adb_ptr)->int return code (0 for sucess)"},
-	{ "_pyadb_insertFromFile", _pyadb_insertFromFile, METH_VARARGS | METH_KEYWORDS,
+	{ "_pyadb_insertFromFile", (PyCFunction)_pyadb_insertFromFile, METH_VARARGS | METH_KEYWORDS,
 	  "_pyadb_insertFromFile(adb_ptr, features=featureFile, [power=powerfile | key=keystring | times=timingFile])->\
 	int return code (0 for sucess)"},
+	{ "_pyadb_queryFromKey", (PyCFunction)_pyadb_queryFromKey, METH_VARARGS | METH_KEYWORDS,
+	 "base query.  The nomenclature here is about a far away as pythonic as is possible.\n\
+This should be taken care of via the higher level python structure\n\
+returns a dict that should be result ordered and key = result key\n\
+and value is a list of tuples one per result associated with that key, of the form:\n\
+   \t(dist, qpos, ipos)\n\
+Note as well that this is by no means the most efficient way to cast from C, simply the most direct\n\
+and what it lacks in effeciency it gains in python side access.  It remains to be seen if this is\n\
+a sensible trade.\n\
+_pyadb_queryFromKey(adb_ptr, query key,\n\
+					[seqLength    = Int Sequence Length, \n\
+					seqStart      = Int offset from start for key, \n\
+					exhaustive    = boolean - True for exhaustive (false by default),\n\
+					falsePositives= boolean - True to keep fps (false by defaults),\n\
+					accumulation  = [\"db\"|\"track\"|\"one2one\"] (\"db\" by default),\n\
+					distance      = [\"dot\"|\"eucNorm\"|\"euclidean\"] (\"dot\" by default),\n\
+					npoints       = int number of points per track,\n\
+					ntracks       = max number of results returned in db accu mode,\n\
+					includeKeys   = list of strings to include (use all by default),\n\
+					excludeKeys   = list of strings to exclude (none by default),\n\
+					radius        = double of nnRadius (1.0 default, overrides npoints if specified),\n\
+					absThres      = double absolute power threshold (db must have power),\n\
+					relThres      = double relative power threshold (db must have power),\n\
+					durRatio      = double time expansion/compresion ratio,\n\
+					hopSize       = int hopsize (1 by default)])->resultDict\n"},
 	{NULL,NULL, 0, NULL}
 };
 
