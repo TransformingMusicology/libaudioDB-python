@@ -38,5 +38,7 @@ setup (name = 'pyadb',
        description = 'AudioDB is a vector based similiarity and matching tool.',
 	   maintainer = 'Benjamin Fields',
 	   maintainer_email = 'b.fields@gold.ac.uk',
-       ext_modules = [module1])
+       ext_modules = [module1],
+       py_modules=['pyadb'],
+)
 
