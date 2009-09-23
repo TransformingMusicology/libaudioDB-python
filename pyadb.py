@@ -157,9 +157,9 @@ Only keys found in Pyadb.validConfigTerms should be defined.  Removing invalid t
 			else:
 				self.type = "dict"
 		def __str__(self):
-			str(self.rawData)
+			return str(self.rawData)
 		def __repr__(self):
-			repr(self.rawData)
+			return repr(self.rawData)
 
 class untitledTests(unittest.TestCase):
 	def setUp(self):
