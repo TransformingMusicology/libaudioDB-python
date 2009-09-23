@@ -103,14 +103,14 @@ class Pyadb(object):
 		durRatio      : double time expansion/compresion ratio,\n\
 		hopSize       : int hopsize (1 by default)])->resultDict\n\
 		resFmt        : [\"list\"|\"dict\"](\"dict\" by default)}"""
-		for key in self.queryConfig.keys():
+		for key in self.configQuery.keys():
 			if key not in Pyadb.validConfigTerms.keys():
-				if not scrub:return False
-				del self.queryConfig[key]
-			if not isinstance(Pyadb.validConfigTerms[key], self.queryConfig[key]):
-				if not scrub:return False
-				self.queryConfig[key] = Pyadb.validConfigTerms[key](self.queryConfig[key])#hrm, syntax?
-		
+				if not scrub: return False
+				del self.configQuery[key]
+			if not isinstance(self.configQuery[key], Pyadb.validConfigTerms[key]):
+				if not scrub: return False
+				self.configQuery[key] = Pyadb.validConfigTerms[key](self.configQuery[key])#hrm, syntax?
+		return True	
 				
 				# 
 	
@@ -130,7 +130,7 @@ Only keys found in Pyadb.validConfigTerms should be defined.  Removing invalid t
 			result = _pyadb._pyadb_queryFromKey(self._db, key, **self.configQuery)
 		elif featData:
 			raise NotImplementedError("direct data query not yet implemented.  Sorry.")
-		return Result(result, self.queryConfig)
+		return Pyadb.Result(result, self.configQuery)
 	
 	###internal methods###
 	def _updateDBAttributes(self):
