@@ -407,7 +407,7 @@ PyObject * _pyadb_queryFromKey(PyObject *self, PyObject *args, PyObject *keywds)
 			"Poorly specified result mode. Result must be either \'dist\' or \'list\'.\n");
 		return NULL;
 	}
-	if (!audiodb_query_free_results(current_db, spec, result)){
+	if (audiodb_query_free_results(current_db, spec, result)){
 		printf("bit of trouble freeing the result and spec...\ncheck for leaks.");
 	}
 	
@@ -471,7 +471,8 @@ _pyadb_queryFromKey(adb_ptr, query key,\n\
 					absThres      = double absolute power threshold (db must have power),\n\
 					relThres      = double relative power threshold (db must have power),\n\
 					durRatio      = double time expansion/compresion ratio,\n\
-					hopSize       = int hopsize (1 by default)])->resultDict\n"},
+					hopSize       = int hopsize (1 by default)])->resultDict\n\
+					resFmt        = [\"list\"|\"dict\"](\"dict\" by default)"},
 	{NULL,NULL, 0, NULL}
 };
 
