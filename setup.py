@@ -28,7 +28,7 @@ module1 = Extension('_pyadb',
 					define_macros = [('MAJOR_VERSION', '0'),
                                      ('MINOR_VERSION', '1')],
                     include_dirs = ['/opt/local/include', '../../', join(numpyBase[0],'core/include')],
-                    libraries = ['audiodb'],
+                    libraries = ['audioDB'],
                     library_dirs = ['../../', '/opt/local/lib'],
                     sources = ['pyadbmodule.c'])
 					
