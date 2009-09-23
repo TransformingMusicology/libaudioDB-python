@@ -25,9 +25,6 @@ class Usage(Exception):
 	"""error to indicate that a method has been called with incorrect args"""
 	def __init__(self, msg):
 		self.msg = msg
-class ConfigWarning(Warning):
-	def __init__(self, msg):
-		self.msg = msg
 
 class Pyadb(object):
 	"""Pyadb class.  Allows for creation, access, insertion and query of an audioDB vector matching database."""
@@ -106,6 +103,7 @@ class Pyadb(object):
 		for key in self.configQuery.keys():
 			if key not in Pyadb.validConfigTerms.keys():
 				if not scrub: return False
+				print "scrubbing %s from query config."%str(key)
 				del self.configQuery[key]
 			if not isinstance(self.configQuery[key], Pyadb.validConfigTerms[key]):
 				if not scrub: return False
@@ -114,15 +112,15 @@ class Pyadb(object):
 				
 				# 
 	
-	def query(self, key=None, featData=None, strictConfig=False):
+	def query(self, key=None, featData=None, strictConfig=True):
 		"""query the database.  Query parameters as defined in self.configQuery. For details on this consult the doc string in the configCheck method."""
 		if not self.configCheck():
 			if strictConfig:
 				raise ValueError("configQuery dict contains unsupported terms and strict configure mode is on.\n\
 Only keys found in Pyadb.validConfigTerms may be defined")
 			else:
-				raise ConfigWarning("configQuery dict contains unsupported terms and strict configure mode is off.\n\
-Only keys found in Pyadb.validConfigTerms should be defined.  Removing invalid terms and proceeding...")
+				print "configQuery dict contains unsupported terms and strict configure mode is off.\n\
+Only keys found in Pyadb.validConfigTerms should be defined.  Removing invalid terms and proceeding..."
 				self.configCheck(scrub=True)
 		if ((not key and not featData) or (key and featData)):
 			raise Usage("query require either key or featData to be defined, you have defined both or neither.")
