@@ -34,9 +34,11 @@ class index:
 class status:
 	def GET(self):
 		web.header("Content-Type", "application/json") 
+
 		db = Pyadb(path = dbPath, mode = "r")
-		status = _pyadb._pyadb_status(db)
-		results = dict(zip(["numFiles", "dim", "dudCount", "nullCount", "flags", "length", "data_region_size"], status))
+		results = dict(zip(
+			["numFiles", "dims", "dudCount", "nullCount", "length", "data_region_size", "l2Normed", "hasPower", "hasTimes", "usesRefs"], 
+			[db.numFiles, db.dims, db.dudCount, db.nullCount, db.length, db.data_region_size, db.l2Normed, db.hasPower, db.hasTimes, db.usesRefs]))
 		return json.dumps(dict(status = "ok", data = results))
 
 class query:
@@ -45,7 +47,7 @@ class query:
 		params = web.input(key="", ntracks=100, seqStart=0, seqLength=16, npoints=1, radius=1.0, hopSize=1, exhaustive=False, falsePositives=False, accumulation="db", distance="dot", absThres=0, relThres=0, durRatio=0, includeKeys=[], excludeKeys=[])
 		results = dict()
 		db = Pyadb(path = dbPath, mode = "r")
-		
+	
 		if not params.includeKeys == []:
 			db.configQuery["includeKeys"] = map(str, params.includeKeys)
 		
@@ -62,7 +64,7 @@ class query:
 		db.configQuery["absThres"] = float(params.absThres)
 		db.configQuery["relThres"] = float(params.relThres)
 		db.configQuery["durRatio"] = float(params.durRatio)
-		db.configQuery["resFmt"] = "dict" 
+		db.configQuery["resFmt"] = "list" 
 		
 
 		
