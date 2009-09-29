@@ -130,6 +130,19 @@ Only keys found in Pyadb.validConfigTerms should be defined.  Removing invalid t
 			raise NotImplementedError("direct data query not yet implemented.  Sorry.")
 		return Pyadb.Result(result, self.configQuery)
 	
+	def status(self):
+		'''update attributes and return them as a dict'''
+		self._updateDBAttributes()
+		return {	"numFiles" : self.numFiles, 
+					"dims"     : self.dims, 
+					"dudCount" : self.dudCount, 
+					"nullCount": self.nullCount, 
+					"length"   : self.length, 
+					"data_region_size" : self.data_region_size,
+					"l2Normed" : self.l2Normed,
+					"hasPower" : self.hasPower,
+					"hasTimes" : self.hasTimes, 
+					"usesRefs" : self.usesRefs}
 	###internal methods###
 	def _updateDBAttributes(self):
 		'''run _pyadb_status to fill/update the database level flags and info'''
