@@ -36,9 +36,7 @@ class status:
 		web.header("Content-Type", "application/json") 
 
 		db = Pyadb(path = dbPath, mode = "r")
-		results = dict(zip(
-			["numFiles", "dims", "dudCount", "nullCount", "length", "data_region_size", "l2Normed", "hasPower", "hasTimes", "usesRefs"], 
-			[db.numFiles, db.dims, db.dudCount, db.nullCount, db.length, db.data_region_size, db.l2Normed, db.hasPower, db.hasTimes, db.usesRefs]))
+		results = db.status()
 		return json.dumps(dict(status = "ok", data = results))
 
 class query:
