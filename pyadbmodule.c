@@ -212,7 +212,8 @@ PyObject * _pyadb_queryFromKey(PyObject *self, PyObject *args, PyObject *keywds)
 								"relThres",
 								"durRatio",
 								"hopSize",
-								"resFmt"
+                                                                "resFmt",
+                                                                NULL
 								};
 	spec = (adb_query_spec_t *)malloc(sizeof(adb_query_spec_t));
 	spec->qid.datum = (adb_datum_t *)malloc(sizeof(adb_datum_t));
