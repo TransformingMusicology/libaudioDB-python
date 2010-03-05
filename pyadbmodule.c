@@ -128,7 +128,7 @@ PyObject * _pyadb_power(PyObject *self, PyObject *args)
 /* this is a bit gross, */
 /* should be replaced eventually by a numpy based feature.*/
 /* api call: */
-// struct adbinsert {
+// struct adb_insert {
 //   const char *features;
 //   const char *power;
 //   const char *key;
