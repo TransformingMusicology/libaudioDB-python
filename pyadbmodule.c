@@ -328,7 +328,9 @@ PyObject * _pyadb_queryFromKey(PyObject *self, PyObject *args, PyObject *keywds)
 	}
 	if (hop){
 		spec->refine.flags = spec->refine.flags | ADB_REFINE_HOP_SIZE;
-		spec->refine.hopsize = hop;
+                /* not ideal but a temporary bandage fix */
+		spec->refine.qhopsize = hop;
+		spec->refine.ihopsize = hop;
 	}
 	//setup the datum
 	spec->qid.datum->data = NULL;
