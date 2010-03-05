@@ -348,14 +348,14 @@ PyObject * _pyadb_queryFromKey(PyObject *self, PyObject *args, PyObject *keywds)
 	if(strcmp(resFmt, "dict")==0){
 		outgoing  = PyDict_New();
 		for (i=0;i<result->nresults;i++){
-			thisKey = PyString_FromString(result->results[i].key);
+			thisKey = PyString_FromString(result->results[i].ikey);
 			if (!PyDict_Contains(outgoing, thisKey)){
 				newBits =  Py_BuildValue("[(dII)]",
 											result->results[i].dist, 
 											result->results[i].qpos, 
 											result->results[i].ipos);
 				if (PyDict_SetItem(outgoing, thisKey,newBits)){
-					printf("key : %s\ndist : %f\nqpos : %i\nipos : %i\n", result->results[i].key, result->results[i].dist, result->results[i].qpos, result->results[i].ipos);
+					printf("key : %s\ndist : %f\nqpos : %i\nipos : %i\n", result->results[i].ikey, result->results[i].dist, result->results[i].qpos, result->results[i].ipos);
 					PyErr_SetString(PyExc_AttributeError, "Error adding a tuple to the result dict\n");
 					Py_XDECREF(newBits);
 					return NULL;
@@ -388,7 +388,7 @@ PyObject * _pyadb_queryFromKey(PyObject *self, PyObject *args, PyObject *keywds)
 	}else if(strcmp(resFmt, "list")==0){
 		outgoing  = PyList_New((Py_ssize_t)0);
 		for (i=0;i<result->nresults;i++){
-			newBits = Py_BuildValue("sdII",result->results[i].key,
+			newBits = Py_BuildValue("sdII",result->results[i].ikey,
 										result->results[i].dist, 
 										result->results[i].qpos, 
 										result->results[i].ipos);
