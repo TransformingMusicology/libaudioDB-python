@@ -20,13 +20,13 @@ static void _pyadb_close(void *ptr);
 /* create a new database */
 /* returns a struct or NULL on failure */
 /* api call: */
-/* adb_ptr audiodb_create(const char *path, unsigned datasize, unsigned ntracks, unsigned datadim);*/
+/* adb_t *audiodb_create(const char *path, unsigned datasize, unsigned ntracks, unsigned datadim);*/
 PyObject * _pyadb_create(PyObject *self, PyObject *args)
 {
 	unsigned datasize, ntracks, datadim;
 	const char *path;
 	int ok;
-	adb_ptr new_database;
+	adb_t *new_database;
 	ok = PyArg_ParseTuple(args, "sIII", &path, &datasize, &ntracks, &datadim);
 	if (!ok) return 0;
 	new_database = audiodb_create(path, datasize, ntracks, datadim);
@@ -39,13 +39,13 @@ PyObject * _pyadb_create(PyObject *self, PyObject *args)
 /* returns a struct or NULL on failure */
 /* flags expects fcntl flags concerning the opening mode */
 /* api call: */
-// adb_ptr audiodb_open(const char *path, int flags);
+// adb_t *audiodb_open(const char *path, int flags);
 PyObject * _pyadb_open(PyObject *self, PyObject *args)
 {
 	const char *path;
 	char mode;
 	int ok;//in python layer need to translate boolean flags to byte mask
-	adb_ptr fresh_database;
+	adb_t *fresh_database;
 	ok = PyArg_ParseTuple(args, "sc", &path, &mode);
 	if (!ok) return 0;
 	if (mode == 'r'){
@@ -64,18 +64,18 @@ PyObject * _pyadb_open(PyObject *self, PyObject *args)
 
 /* database status */  
 /* api call: */
-// int audiodb_status(adb_ptr mydb, adb_status_ptr status);
+// int audiodb_status(adb_t *mydb, adb_status_ptr status);
 PyObject * _pyadb_status(PyObject *self, PyObject *args)
 {
-	adb_ptr check_db;
-	adb_status_ptr status;
+	adb_t *check_db;
+	adb_status_t *status;
 	int flags, ok;
 	PyObject * incoming = 0;
-	status = (adb_status_ptr)malloc(sizeof(struct adbstatus));
+	status = (adb_status_t *)malloc(sizeof(adb_status_t));
 	
 	ok = PyArg_ParseTuple(args, "O", &incoming);
 	if (!ok) return 0;
-	check_db = (adb_ptr)PyCObject_AsVoidPtr(incoming);
+	check_db = (adb_t *)PyCObject_AsVoidPtr(incoming);
 	
 	
 	flags = audiodb_status(check_db, status);
@@ -91,16 +91,16 @@ PyObject * _pyadb_status(PyObject *self, PyObject *args)
 
 /*engage l2norm in the referenced db*/
 /*api call:*/
-//int audiodb_l2norm(adb_ptr mydb);
+//int audiodb_l2norm(adb_t *mydb);
 PyObject * _pyadb_l2norm(PyObject *self, PyObject *args)
 {
-	adb_ptr current_db;
+	adb_t *current_db;
 	int ok;
 	PyObject * incoming = 0;
 	
 	ok = PyArg_ParseTuple(args, "O", &incoming);
 	if (!ok) return 0;
-	current_db = (adb_ptr)PyCObject_AsVoidPtr(incoming);
+	current_db = (adb_t *)PyCObject_AsVoidPtr(incoming);
 	
 	ok = audiodb_l2norm(current_db);
 	return PyBool_FromLong(ok-1);
@@ -109,16 +109,16 @@ PyObject * _pyadb_l2norm(PyObject *self, PyObject *args)
 
 /*engage power thresholding in the referenced db*/
 /*api call:*/
-// int audiodb_power(adb_ptr mydb);
+// int audiodb_power(adb_t *mydb);
 PyObject * _pyadb_power(PyObject *self, PyObject *args)
 {
-	adb_ptr current_db;
+	adb_t *current_db;
 	int ok;
 	PyObject * incoming = 0;
 	
 	ok = PyArg_ParseTuple(args, "O", &incoming);
 	if (!ok) return 0;
-	current_db = (adb_ptr)PyCObject_AsVoidPtr(incoming);
+	current_db = (adb_t *)PyCObject_AsVoidPtr(incoming);
 	
 	ok = audiodb_power(current_db);
 	return PyBool_FromLong(ok-1);
@@ -134,11 +134,11 @@ PyObject * _pyadb_power(PyObject *self, PyObject *args)
 //   const char *key;
 //   const char *times;
 // };
-// int audiodb_insert(adb_ptr mydb, adb_insert_ptr ins);
+// int audiodb_insert(adb_t *mydb, adb_insert_t *ins);
 PyObject * _pyadb_insertFromFile(PyObject *self, PyObject *args, PyObject *keywds)
 {
-	adb_ptr current_db;
-	adb_insert_ptr ins;
+	adb_t *current_db;
+	adb_insert_t *ins;
 	int ok;
 	const char *features;
 	const char *power = NULL;
@@ -150,8 +150,8 @@ PyObject * _pyadb_insertFromFile(PyObject *self, PyObject *args, PyObject *keywd
 	ok =  PyArg_ParseTupleAndKeywords(args, keywds, "Os|sss", kwlist, &incoming, &features, &power, &key, &times);
 	if (!ok){return NULL;}
 	
-	current_db = (adb_ptr)PyCObject_AsVoidPtr(incoming);
-	ins = (adb_insert_ptr)malloc(sizeof(adb_insert_t));
+	current_db = (adb_t *)PyCObject_AsVoidPtr(incoming);
+	ins = (adb_insert_t *)malloc(sizeof(adb_insert_t));
 	ins->features = features;
 	ins->power = power;
 	ins->key = key;
@@ -175,7 +175,7 @@ PyObject * _pyadb_insertFromFile(PyObject *self, PyObject *args, PyObject *keywd
  ***/
 PyObject * _pyadb_queryFromKey(PyObject *self, PyObject *args, PyObject *keywds)
 {
-	adb_ptr current_db;
+	adb_t *current_db;
 	adb_query_spec_t *spec;
 	adb_query_results_t *result;
 	int ok, exhaustive, falsePositives;
@@ -240,7 +240,7 @@ PyObject * _pyadb_queryFromKey(PyObject *self, PyObject *args, PyObject *keywds)
 												);
 	
 	if (!ok) {return NULL;}
-	current_db = (adb_ptr)PyCObject_AsVoidPtr(incoming);
+	current_db = (adb_t *)PyCObject_AsVoidPtr(incoming);
 	
 	if (exhaustive){
 		spec->qid.flags = spec->qid.flags | ADB_QID_FLAG_EXHAUSTIVE;
@@ -423,11 +423,11 @@ PyObject * _pyadb_queryFromKey(PyObject *self, PyObject *args, PyObject *keywds)
 
 /* close a database */
 /* api call: */
-// void audiodb_close(adb_ptr db);
+// void audiodb_close(adb_t *db);
 static void _pyadb_close(void *ptr)
 {
-	adb_ptr stale_database;
-	stale_database = (adb_ptr)ptr; 
+	adb_t *stale_database;
+	stale_database = (adb_t *)ptr; 
 	
 	audiodb_close(stale_database);
 }
@@ -440,13 +440,13 @@ static PyMethodDef _pyadbMethods[] =
 	  "_pyadb_open(string path, [\'r\'|\'w\'])->adb object\nNote that specifing \'w\' opens the file in read and write mode.  \
 	There is currently no way to open in write only."},
 	{ "_pyadb_status", _pyadb_status, METH_VARARGS,
-	  "_status(adb_ptr)->(numFiles, dims, dudCount, nullCount, flags, length, data_region_size)"},
+	  "_status(adb_t *)->(numFiles, dims, dudCount, nullCount, flags, length, data_region_size)"},
 	{ "_pyadb_l2norm", _pyadb_l2norm, METH_VARARGS,
-	  "_pyadb_l2norm(adb_ptr)->int return code (0 for sucess)"},
+	  "_pyadb_l2norm(adb_t *)->int return code (0 for sucess)"},
 	{ "_pyadb_power", _pyadb_power, METH_VARARGS,
-	  "_pyadb_power(adb_ptr)->int return code (0 for sucess)"},
+	  "_pyadb_power(adb_t *)->int return code (0 for sucess)"},
 	{ "_pyadb_insertFromFile", (PyCFunction)_pyadb_insertFromFile, METH_VARARGS | METH_KEYWORDS,
-	  "_pyadb_insertFromFile(adb_ptr, features=featureFile, [power=powerfile | key=keystring | times=timingFile])->\
+	  "_pyadb_insertFromFile(adb_t *, features=featureFile, [power=powerfile | key=keystring | times=timingFile])->\
 	int return code (0 for sucess)"},
 	{ "_pyadb_queryFromKey", (PyCFunction)_pyadb_queryFromKey, METH_VARARGS | METH_KEYWORDS,
 	 "base query.  The nomenclature here is about a far away as pythonic as is possible.\n\
@@ -457,7 +457,7 @@ and value is a list of tuples one per result associated with that key, of the fo
 Note as well that this is by no means the most efficient way to cast from C, simply the most direct\n\
 and what it lacks in effeciency it gains in python side access.  It remains to be seen if this is\n\
 a sensible trade.\n\
-_pyadb_queryFromKey(adb_ptr, query key,\n\
+_pyadb_queryFromKey(adb_t *, query key,\n\
 					[seqLength    = Int Sequence Length, \n\
 					seqStart      = Int offset from start for key, \n\
 					exhaustive    = boolean - True for exhaustive (false by default),\n\
