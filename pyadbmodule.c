@@ -4,7 +4,8 @@
 // see pyadb.py for the public classes
 // 
 // Created by Benjamin Fields on 2009-09-04.
-// Copyright (c) 2009 Goldsmith University of London. 
+// Big update for direct data insertion 2010-June (Benjamin Fields)
+// Copyleft 2009, 2010 Goldsmith University of London. 
 // Distributed and licensed under GPL2. See ../../license.txt for details.
 // 	
 #include <fcntl.h>
@@ -124,6 +125,119 @@ PyObject * _pyadb_power(PyObject *self, PyObject *args)
 	return PyBool_FromLong(ok-1);
 	
 }
+
+/* insert feature data from a numpy array */
+/* array given should have ndarray.shape = (numDims, numVectors)*/
+/* array datatype needs to be doubles (float may work...)*/
+/* if power is given, must be 1d array of length numVectors*/
+/* if times is given, must be 1d array of length 2*numVectors like this:*/
+
+/* api call: */
+// typedef struct adb_datum {
+//   uint32_t nvectors;
+//   uint32_t dim;
+//   const char *key;
+//   double *data;
+//   double *power;
+//   double *times;
+// } adb_datum_t;
+// int audiodb_insert_datum(adb_t *, const adb_datum_t *);
+PyObject * _pyadb_insertFromArray(PyObject *self, PyObject *args, PyObject *keywds)
+{
+	adb_t *current_db;
+	adb_status_t *status;
+	adb_datum_t *ins;
+	int ok;
+	npy_intp dims[1];
+	unsigned int nDims = 0;
+	unsigned int nVect = 0;
+	PyObject *incoming = 0;
+	PyObject *features = 0;
+	PyObject *power = NULL;
+	const char *key = NULL;
+	PyObject *times = NULL;
+	PyArray_Descr *descr;
+	static char *kwlist[]  = { "db", "features", "nDim", "nVect", "power", "key", "times" , NULL};
+	
+	ok =  PyArg_ParseTupleAndKeywords(args, keywds, "OOII|OsO", kwlist, &incoming, &features, nDims, nVect, &power, &key, &times);
+	if (!ok){return NULL;}
+	//check our arrays
+	if (!PyArray_Check(features)){
+		PyErr_SetString(PyExc_TypeError, "features must be a numpy array (of floats or doubles)");
+		return NULL;
+	}
+	if (!PyArray_ISFLOAT(features)){
+		PyErr_SetString(PyExc_TypeError, "features numpy array must contain floats or doubles");
+		return NULL;
+	}
+	if ((PyArray_NDIM(features) != 1) || (PyArray_DIMS(features)[0] != (nDims * nVect))){
+		PyErr_SetString(PyExc_TypeError, "features numpy array must be flattened before call.");
+		return NULL;
+	}
+	descr = PyArray_DescrFromType(NPY_DOUBLE);
+	
+	if (power){
+		if (!PyArray_Check(power)){
+			PyErr_SetString(PyExc_TypeError, "power, if given, must be a numpy array (of floats or doubles)");
+			return NULL;
+		}
+		if (!PyArray_ISFLOAT(power)){
+			PyErr_SetString(PyExc_TypeError, "power numpy array, if given, must contain floats or doubles");
+			return NULL;
+		}
+		// power = (PyArrayObject *)PyCObject_AsVoidPtr(incomingPow);
+		if (PyArray_NDIM(features) != 1 || PyArray_DIMS(power)[0] == nVect){
+			PyErr_SetString(PyExc_ValueError, "power, if given must be a 1d numpy array with shape =  (numVectors,)");
+			return NULL;
+		}
+	}
+	if (times){
+		if (!PyArray_Check(times)){
+			PyErr_SetString(PyExc_TypeError, "times, if given, must be a numpy array (of floats or doubles)");
+			return NULL;
+		}
+		if (!PyArray_ISFLOAT(times)){
+			PyErr_SetString(PyExc_TypeError, "times numpy array, if given, must contain floats or doubles");
+			return NULL;
+		}
+		// times = (PyArrayObject *)PyCObject_AsVoidPtr(incomingTime);
+		if (PyArray_NDIM(times) != 1 || PyArray_DIMS(times)[0] == (nVect*2)){
+			PyErr_SetString(PyExc_ValueError, "times, if given must be a 1d numpy array with shape =  (numVectors,)");
+			return NULL;
+		}
+	}
+	current_db = (adb_t *)PyCObject_AsVoidPtr(incoming);
+	status = (adb_status_t *)malloc(sizeof(adb_status_t));
+	//verify that the data to be inserted is the correct size for the database.
+	
+	ins = (adb_datum_t *)malloc(sizeof(adb_datum_t));
+	if (!PyArray_AsCArray(&features, ins->data, dims,  1, descr)){
+		PyErr_SetString(PyExc_RuntimeError, "Trouble expressing the feature np array as a C array.");
+		return NULL;
+	}
+	
+	if (power != NULL){
+		if (!PyArray_AsCArray(&power, ins->power, dims,  1, descr)){
+			PyErr_SetString(PyExc_RuntimeError, "Trouble expressing the power np array as a C array.");
+			return NULL;
+		}
+	}
+	
+	if (power != NULL){
+		if (!PyArray_AsCArray(&times, ins->times, dims,  1, descr)){
+			PyErr_SetString(PyExc_RuntimeError, "Trouble expressing the times np array as a C array.");
+			return NULL;
+		}
+	}
+	ins->key = key;
+	ins->nvectors = (uint32_t)nVect;
+	ins->dim = (uint32_t)nDims;
+	//printf("features::%s\npower::%s\nkey::%s\ntimes::%s\n", ins->features, ins->power, ins->key, ins->times);
+	ok = audiodb_insert_datum(current_db, ins);//(current_db, ins);
+	return PyBool_FromLong(ok-1);
+	
+}
+
 /* insert feature data stored in a file */
 /* this is a bit gross, */
 /* should be replaced eventually by a numpy based feature.*/
@@ -447,6 +561,13 @@ static PyMethodDef _pyadbMethods[] =
 	  "_pyadb_l2norm(adb_t *)->int return code (0 for sucess)"},
 	{ "_pyadb_power", _pyadb_power, METH_VARARGS,
 	  "_pyadb_power(adb_t *)->int return code (0 for sucess)"},
+	{"_pyadb_insertFromArray", (PyCFunction)_pyadb_insertFromArray, METH_VARARGS | METH_KEYWORDS,
+	"insert feature data from a numpy array\n\
+	array given should have ndarray.shape = (numDims*numVectors,)\n\
+	array datatype needs to be doubles (float may work...)\n\
+	if power is given, must be 1d array of length numVectors\n\
+	if times is given, must be 1d array of length 2*numVectors like this:\n\
+	int audiodb_insert_datum(adb_t *, const adb_datum_t *);"},
 	{ "_pyadb_insertFromFile", (PyCFunction)_pyadb_insertFromFile, METH_VARARGS | METH_KEYWORDS,
 	  "_pyadb_insertFromFile(adb_t *, features=featureFile, [power=powerfile | key=keystring | times=timingFile])->\
 	int return code (0 for sucess)"},
