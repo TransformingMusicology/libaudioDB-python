@@ -13,6 +13,7 @@ Created by Ben Fields on 2010-01-11.
 import sys
 import os,os.path
 import pyadb
+import numpy as np
 import struct
 import unittest
 
@@ -28,7 +29,7 @@ class CreateADBTests(unittest.TestCase):
 			self.adb.status()
 		except:
 			self.assert_(False)
-	def test_1DinsertionSelfQuery(self):
+	def test_1DinsertionFromFileSelfQuery(self):
 		tH = open("testfeature", 'w')
 		tH.write(struct.pack("=id",1,1))
 		tH.close()
@@ -39,7 +40,17 @@ class CreateADBTests(unittest.TestCase):
 		self.assert_(result.rawData.has_key("testfeature"))
 		self.assert_(len(result.rawData["testfeature"]) == 1)
 		self.assert_(result.rawData["testfeature"][0] == (float("-inf"), 0,0))
-		
+		os.remove(self.adb.path)#delete the db
+	def test_1DinsertionFromArraySelfQuery(self):
+		test1 = np.ones(6)
+		print "test1: " + str(test1)
+		self.adb.insert(featData=test1, key="testfeature")
+		self.adb.configQuery["seqLength"] = 1
+		result = self.adb.query(key="testfeature")
+		self.assert_(len(result.rawData) == 1)
+		self.assert_(result.rawData.has_key("testfeature"))
+		self.assert_(len(result.rawData["testfeature"]) == 1)
+		self.assert_(result.rawData["testfeature"][0] == (float("-inf"), 0,0))
 		
 
 

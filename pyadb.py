@@ -16,10 +16,10 @@ import os, os.path
 import unittest
 import _pyadb
 
-ADB_HEADER_FLAG_L2NORM = 0x1#annoyingly I can't find a means
-ADB_HEADER_FLAG_POWER = 0x4#around defining these flag definitions 
-ADB_HEADER_FLAG_TIMES = 0x20#as they aren't even exported to the 
-ADB_HEADER_FLAG_REFERENCES = 0x40#api, so this is the only way to get them.
+ADB_HEADER_FLAG_L2NORM = 0x1      #annoyingly I can't find a means
+ADB_HEADER_FLAG_POWER = 0x4       #around defining these flag definitions 
+ADB_HEADER_FLAG_TIMES = 0x20      #as they aren't even exported to the 
+ADB_HEADER_FLAG_REFERENCES = 0x40 #api, so this is the only way to get them.
 
 class Usage(Exception):
 	"""error to indicate that a method has been called with incorrect args"""
@@ -45,7 +45,10 @@ class Pyadb(object):
 		return
 	
 	def insert(self, featFile=None, powerFile=None, timesFile=None, featData=None, powerData=None, timesData=None, key=None):
-		"""Insert features into database.  Can be done with data provided directly or by giving a path to a binary fftExtract style feature file.  If power and/or timing is engaged in the database header, it must be provided (via the same means as the feature) or a Usage exception will be raised. Power files should be of the same binary type as features.  Times files should be the ascii number length of time in seconds from the begining of the file to segment start, one per line.\n---Note that direct data insertion is not yet implemented.---"""
+		"""
+		Insert features into database.  Can be done with data provided directly or by giving a path to a binary fftExtract style feature file.  If power and/or timing is engaged in the database header, it must be provided (via the same means as the feature) or a Usage exception will be raised. Power files should be of the same binary type as features.  Times files should be the ascii number length of time in seconds from the begining of the file to segment start, one per line.
+		If providing data directly, featData should be a numpy array with shape= (number of Dimensions, number of Vectors)
+		"""
 		#While python style normally advocates leaping before looking, these check are nessecary as 
 		#it is very difficult to assertain why the insertion failed once it has been called.
 		if (self.hasPower and (((featFile) and powerFile==None) or ((featData) and powerData==None))):
@@ -57,7 +60,7 @@ class Pyadb(object):
 		args = {"db":self._db}
 		if featFile:
 			args["features"] = featFile
-		elif featData:
+		elif (featData != None):
 			args["features"] = featData
 		else:
 			raise(Usage, "Must provide some feature data!")
@@ -75,12 +78,20 @@ class Pyadb(object):
 			args["key"]=str(key)
 		if featFile:
 			if not _pyadb._pyadb_insertFromFile(**args):
-				raise(RuntimeError, "Insertion failed for an unknown reason.")
+				raise(RuntimeError, "Insertion from file failed for an unknown reason.")
 			else:
 				self._updateDBAttributes()
 				return
-		elif featData:
-			raise(NotImplementedError, "direct data insertion not yet implemented")
+		elif (featData != None):
+			if (len(args["features"].shape) == 1) : args["features"] = args["features"].reshape((args["features"].shape[0],1))
+			args["nDim"], args["nVect"] = args["features"].shape
+			args["features"] = args["features"].flatten()
+			print "args: " + str(args)
+			if not _pyadb._pyadb_insertFromArray(**args):
+				raise(RuntimeError, "Direct data insertion failed for an unknown reason.")
+			else:
+				self._updateDBAttributes()
+				return
 	
 	def configCheck(self, scrub=False):
 		"""examine self.configQuery dict.  For each key encouters confirm it is in the validConfigTerms list and if appropriate, type check.  If scrub is False, leave unexpected keys and values alone and return False, if scrub  try to correct errors (attempt type casts and remove unexpected entries) and continue.  If self.configQuery only contains expected keys with correctly typed values, return True.  See Pyadb.validConfigTerms for allowed keys and types.  Note also that include/exclude key lists memebers or string switched are not verified here, but rather when they are converted to const char * in the C api call and if malformed, an error will be rasied from there.  Valid keys and values in  queryconfig:

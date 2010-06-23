@@ -152,14 +152,14 @@ PyObject * _pyadb_insertFromArray(PyObject *self, PyObject *args, PyObject *keyw
 	unsigned int nDims = 0;
 	unsigned int nVect = 0;
 	PyObject *incoming = 0;
-	PyObject *features = 0;
+	PyObject *features = NULL;
 	PyObject *power = NULL;
 	const char *key = NULL;
 	PyObject *times = NULL;
 	PyArray_Descr *descr;
 	static char *kwlist[]  = { "db", "features", "nDim", "nVect", "power", "key", "times" , NULL};
 	
-	ok =  PyArg_ParseTupleAndKeywords(args, keywds, "OOII|OsO", kwlist, &incoming, &features, nDims, nVect, &power, &key, &times);
+	ok =  PyArg_ParseTupleAndKeywords(args, keywds, "OOII|OsO", kwlist, &incoming, &features, &nDims, &nVect, &power, &key, &times);
 	if (!ok){return NULL;}
 	//check our arrays
 	if (!PyArray_Check(features)){
