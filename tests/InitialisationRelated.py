@@ -33,7 +33,7 @@ class CreateADBTests(unittest.TestCase):
 		tH = open("testfeature", 'w')
 		tH.write(struct.pack("=id",1,1))
 		tH.close()
-		self.adb.insert("testfeature")
+		self.adb.insert("testfeature", key='testfeature')
 		self.adb.configQuery["seqLength"] = 1
 		result = self.adb.query("testfeature")
 		self.assert_(len(result.rawData) == 1)
@@ -42,7 +42,7 @@ class CreateADBTests(unittest.TestCase):
 		self.assert_(result.rawData["testfeature"][0] == (float("-inf"), 0,0))
 		os.remove(self.adb.path)#delete the db
 	def test_1DinsertionFromArraySelfQuery(self):
-		test1 = np.ones(6)
+		test1 = np.ones(1)
 		print "test1: " + str(test1)
 		self.adb.insert(featData=test1, key="testfeature")
 		self.adb.configQuery["seqLength"] = 1

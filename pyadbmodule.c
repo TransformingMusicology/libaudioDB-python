@@ -152,20 +152,20 @@ PyObject * _pyadb_insertFromArray(PyObject *self, PyObject *args, PyObject *keyw
 	unsigned int nDims = 0;
 	unsigned int nVect = 0;
 	PyObject *incoming = 0;
-	PyObject *features = NULL;
-	PyObject *power = NULL;
+	PyArrayObject *features = 0;
+	PyArrayObject *power = 0;
+	PyArrayObject *times = 0;
 	const char *key = NULL;
-	PyObject *times = NULL;
 	PyArray_Descr *descr;
 	static char *kwlist[]  = { "db", "features", "nDim", "nVect", "power", "key", "times" , NULL};
 	
-	ok =  PyArg_ParseTupleAndKeywords(args, keywds, "OOII|OsO", kwlist, &incoming, &features, &nDims, &nVect, &power, &key, &times);
+	ok =  PyArg_ParseTupleAndKeywords(args, keywds, "OO!II|O!sO!", kwlist, &incoming, &PyArray_Type, &features, &nDims, &nVect, &PyArray_Type,  &power, &key, &PyArray_Type, &times);
 	if (!ok){return NULL;}
 	//check our arrays
-	if (!PyArray_Check(features)){
-		PyErr_SetString(PyExc_TypeError, "features must be a numpy array (of floats or doubles)");
-		return NULL;
-	}
+	// if (!PyArray_Check(features)){
+	// 	PyErr_SetString(PyExc_TypeError, "features must be a numpy array (of floats or doubles)");
+	// 	return NULL;
+	// }
 	if (!PyArray_ISFLOAT(features)){
 		PyErr_SetString(PyExc_TypeError, "features numpy array must contain floats or doubles");
 		return NULL;
@@ -211,20 +211,20 @@ PyObject * _pyadb_insertFromArray(PyObject *self, PyObject *args, PyObject *keyw
 	//verify that the data to be inserted is the correct size for the database.
 	
 	ins = (adb_datum_t *)malloc(sizeof(adb_datum_t));
-	if (!PyArray_AsCArray(&features, ins->data, dims,  1, descr)){
+	if (!PyArray_AsCArray(&features, &(ins->data), dims,  1, descr)){
 		PyErr_SetString(PyExc_RuntimeError, "Trouble expressing the feature np array as a C array.");
 		return NULL;
 	}
 	
-	if (power != NULL){
-		if (!PyArray_AsCArray(&power, ins->power, dims,  1, descr)){
+	if (power){
+		if (!PyArray_AsCArray(&power, &(ins->power), dims,  1, descr)){
 			PyErr_SetString(PyExc_RuntimeError, "Trouble expressing the power np array as a C array.");
 			return NULL;
 		}
 	}
 	
-	if (power != NULL){
-		if (!PyArray_AsCArray(&times, ins->times, dims,  1, descr)){
+	if (times){
+		if (!PyArray_AsCArray(&times, &(ins->times), dims,  1, descr)){
 			PyErr_SetString(PyExc_RuntimeError, "Trouble expressing the times np array as a C array.");
 			return NULL;
 		}
@@ -326,8 +326,8 @@ PyObject * _pyadb_queryFromKey(PyObject *self, PyObject *args, PyObject *keywds)
 								"relThres",
 								"durRatio",
 								"hopSize",
-                                                                "resFmt",
-                                                                NULL
+                                "resFmt",
+                                NULL
 								};
 	spec = (adb_query_spec_t *)malloc(sizeof(adb_query_spec_t));
 	spec->qid.datum = (adb_datum_t *)malloc(sizeof(adb_datum_t));
@@ -458,7 +458,7 @@ PyObject * _pyadb_queryFromKey(PyObject *self, PyObject *args, PyObject *keywds)
 	}
 	result = audiodb_query_spec(current_db, spec);
 	if (result == NULL){
-		PyErr_SetString(PyExc_RuntimeError, "Encountered an error while running the actual query.\n");
+		PyErr_SetString(PyExc_RuntimeError, "Encountered an error while running the actual query, or there was nothing returned.\n");
 		return NULL;
 		}
 	if(strcmp(resFmt, "dict")==0){
@@ -562,7 +562,9 @@ static PyMethodDef _pyadbMethods[] =
 	{ "_pyadb_power", _pyadb_power, METH_VARARGS,
 	  "_pyadb_power(adb_t *)->int return code (0 for sucess)"},
 	{"_pyadb_insertFromArray", (PyCFunction)_pyadb_insertFromArray, METH_VARARGS | METH_KEYWORDS,
-	"insert feature data from a numpy array\n\
+	"_pyadb_insertFromArray(adb_t *, features=ndarray, [power=ndarray | key=keystring | times=ndarray])->\
+	int return code (0 for sucess)\n\
+	insert feature data from a numpy array\n\
 	array given should have ndarray.shape = (numDims*numVectors,)\n\
 	array datatype needs to be doubles (float may work...)\n\
 	if power is given, must be 1d array of length numVectors\n\
@@ -602,8 +604,8 @@ _pyadb_queryFromKey(adb_t *, query key,\n\
 
 void init_pyadb()
 {
-	Py_InitModule3("_pyadb", _pyadbMethods, "internal c bindings for audioDB.  Use pyadb for pythonic access to adb (when it exists).");
-	// import_array();
+	Py_InitModule3("_pyadb", _pyadbMethods, "internal c bindings for audioDB.  Use pyadb for pythonic access to adb.");
+	import_array();
 	return;
 }
 
