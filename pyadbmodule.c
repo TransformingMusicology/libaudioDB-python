@@ -127,7 +127,7 @@ PyObject * _pyadb_power(PyObject *self, PyObject *args)
 }
 
 /* insert feature data from a numpy array */
-/* array given should have ndarray.shape = (numDims, numVectors)*/
+/* array given should have ndarray.shape = (numVectors, numDims)*/
 /* array datatype needs to be doubles (float may work...)*/
 /* if power is given, must be 1d array of length numVectors*/
 /* if times is given, must be 1d array of length 2*numVectors like this:*/
@@ -520,7 +520,8 @@ PyObject * _pyadb_queryFromKey(PyObject *self, PyObject *args, PyObject *keywds)
 			Py_DECREF(newBits);
 		}
 		if(PyList_Reverse(outgoing)){//need to do this as things come off the accumulator backward.
-			printf("the reverse failed, hopefully a sensable error will follow.\nIf not, fix it.\n");
+			PyErr_SetString(PyExc_RuntimeError,
+			"the reverse failed, hopefully a sensable error will follow.\nIf not, fix it.\n");
 			return NULL;
 			}
 	}else{

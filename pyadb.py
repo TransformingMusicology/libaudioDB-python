@@ -84,7 +84,7 @@ class Pyadb(object):
 				return
 		elif (featData != None):
 			if (len(args["features"].shape) == 1) : args["features"] = args["features"].reshape((args["features"].shape[0],1))
-			args["nDim"], args["nVect"] = args["features"].shape
+			args["nVect"], args["nDim"] = args["features"].shape
 			args["features"] = args["features"].flatten()
 			print "args: " + str(args)
 			ok = _pyadb._pyadb_insertFromArray(**args)
