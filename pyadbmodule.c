@@ -211,30 +211,34 @@ PyObject * _pyadb_insertFromArray(PyObject *self, PyObject *args, PyObject *keyw
 	//verify that the data to be inserted is the correct size for the database.
 	
 	ins = (adb_datum_t *)malloc(sizeof(adb_datum_t));
-	if (!PyArray_AsCArray(&features, &(ins->data), dims,  1, descr)){
+	if (PyArray_AsCArray(&features, &(ins->data), dims,  1, descr)){
 		PyErr_SetString(PyExc_RuntimeError, "Trouble expressing the feature np array as a C array.");
 		return NULL;
 	}
 	
 	if (power){
-		if (!PyArray_AsCArray(&power, &(ins->power), dims,  1, descr)){
+		if (PyArray_AsCArray(&power, &(ins->power), dims,  1, descr)){
 			PyErr_SetString(PyExc_RuntimeError, "Trouble expressing the power np array as a C array.");
 			return NULL;
 		}
+	}else{
+		ins->power=NULL;
 	}
 	
 	if (times){
-		if (!PyArray_AsCArray(&times, &(ins->times), dims,  1, descr)){
+		if (PyArray_AsCArray(&times, &(ins->times), dims,  1, descr)){
 			PyErr_SetString(PyExc_RuntimeError, "Trouble expressing the times np array as a C array.");
 			return NULL;
 		}
+	}else{
+		ins->times=NULL;
 	}
 	ins->key = key;
 	ins->nvectors = (uint32_t)nVect;
 	ins->dim = (uint32_t)nDims;
 	//printf("features::%s\npower::%s\nkey::%s\ntimes::%s\n", ins->features, ins->power, ins->key, ins->times);
 	ok = audiodb_insert_datum(current_db, ins);//(current_db, ins);
-	return PyBool_FromLong(ok-1);
+	return PyInt_FromLong(ok);
 	
 }
 

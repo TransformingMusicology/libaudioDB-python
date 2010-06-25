@@ -78,7 +78,7 @@ class Pyadb(object):
 			args["key"]=str(key)
 		if featFile:
 			if not _pyadb._pyadb_insertFromFile(**args):
-				raise(RuntimeError, "Insertion from file failed for an unknown reason.")
+				raise RuntimeError("Insertion from file failed for an unknown reason.")
 			else:
 				self._updateDBAttributes()
 				return
@@ -87,8 +87,9 @@ class Pyadb(object):
 			args["nDim"], args["nVect"] = args["features"].shape
 			args["features"] = args["features"].flatten()
 			print "args: " + str(args)
-			if not _pyadb._pyadb_insertFromArray(**args):
-				raise(RuntimeError, "Direct data insertion failed for an unknown reason.")
+			ok = _pyadb._pyadb_insertFromArray(**args)
+			if not (ok==0):
+				raise RuntimeError("Direct data insertion failed for an unknown reason. err code = %i"%ok)
 			else:
 				self._updateDBAttributes()
 				return
