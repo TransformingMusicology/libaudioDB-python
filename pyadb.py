@@ -32,7 +32,10 @@ class Pyadb(object):
 		"falsePositives":bool, "accumulation":str, "distance":str, "npoints":int,
 		"ntracks":int, "includeKeys":list, "excludeKeys":list, "radius":float, "absThres":float,
 		"relThres":float, "durRatio":float, "hopSize":int, "resFmt":str}
-	def __init__(self, path, mode='w'):
+	def __init__(self, path, mode='w', datasize=0, ntracks=0, datadim=0):
+		"""
+		initialize the database.  By default db will hold 20000 tracks, be 2GB in size and determine datadim from the first inserted feature
+		"""
 		self.path = path
 		self.configQuery = {}
 		if not (mode=='w' or mode =='r'):
@@ -40,7 +43,7 @@ class Pyadb(object):
 		if os.path.exists(path):
 			self._db = _pyadb._pyadb_open(path, mode)
 		else:
-			self._db = _pyadb._pyadb_create(path,0,0,0)
+			self._db = _pyadb._pyadb_create(path,datasize,ntracks,datadim)
 		self._updateDBAttributes()
 		return
 	
