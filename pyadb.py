@@ -54,10 +54,10 @@ class Pyadb(object):
 		"""
 		#While python style normally advocates leaping before looking, these check are nessecary as 
 		#it is very difficult to assertain why the insertion failed once it has been called.
-		if (self.hasPower and (((featFile) and powerFile==None) or ((featData) and powerData==None))):
+		if (self.hasPower and (((featFile) and powerFile==None) or ((not featData==None) and powerData==None))):
 			raise(Usage, "The db you are attempting an insert on (%s) expects power and you either\
  haven't provided any or have done so in the wrong format."%self.path)
-		if (self.hasTimes and (((timesFile) and timesFile==None) or ((timesData) and timesData==None))):
+		if (self.hasTimes and (((timesFile) and timesFile==None) or ((not timesData==None) and timesData==None))):
 			raise(Usage, "The db you are attempting an insert on (%s) expects times and you either\
  haven't provided any or have done so in the wrong format."%self.path)
 		args = {"db":self._db}
@@ -70,12 +70,12 @@ class Pyadb(object):
 		if self.hasPower:
 			if featFile:
 				args["power"]=powerFile
-			elif featData:
-				pass
+			elif featData.any():
+				args["power"]=powerData
 		if self.hasTimes:
 			if featFile:
 				args["times"]=timesFile
-			elif timesData:
+			elif timesData.any():
 				pass
 		if key:
 			args["key"]=str(key)
@@ -86,9 +86,14 @@ class Pyadb(object):
 				self._updateDBAttributes()
 				return
 		elif (featData != None):
-			if (len(args["features"].shape) == 1) : args["features"] = args["features"].reshape((args["features"].shape[0],1))
+			if (len(args["features"].shape) == 1) : 
+				args["features"] = args["features"].reshape((args["features"].shape[0],1))
 			args["nVect"], args["nDim"] = args["features"].shape
 			args["features"] = args["features"].flatten()
+			if(powerData != None):
+				if (len(args["power"].shape) == 1) : 
+					args["power"] = args["power"].reshape((args["power"].shape[0],1))
+				args["power"] = args["power"].flatten()
 			print "args: " + str(args)
 			ok = _pyadb._pyadb_insertFromArray(**args)
 			if not (ok==0):

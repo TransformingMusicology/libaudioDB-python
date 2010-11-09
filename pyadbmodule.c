@@ -160,7 +160,10 @@ PyObject * _pyadb_insertFromArray(PyObject *self, PyObject *args, PyObject *keyw
 	static char *kwlist[]  = { "db", "features", "nDim", "nVect", "power", "key", "times" , NULL};
 	
 	ok =  PyArg_ParseTupleAndKeywords(args, keywds, "OO!II|O!sO!", kwlist, &incoming, &PyArray_Type, &features, &nDims, &nVect, &PyArray_Type,  &power, &key, &PyArray_Type, &times);
-	if (!ok){return NULL;}
+	if (!ok){
+	  PyErr_SetString(PyExc_TypeError, "Failed at PyArg_ParseTupleAndKeywords");
+	  return NULL;
+	}
 	//check our arrays
 	// if (!PyArray_Check(features)){
 	// 	PyErr_SetString(PyExc_TypeError, "features must be a numpy array (of floats or doubles)");
@@ -186,7 +189,7 @@ PyObject * _pyadb_insertFromArray(PyObject *self, PyObject *args, PyObject *keyw
 			return NULL;
 		}
 		// power = (PyArrayObject *)PyCObject_AsVoidPtr(incomingPow);
-		if (PyArray_NDIM(features) != 1 || PyArray_DIMS(power)[0] == nVect){
+		if (PyArray_NDIM(features) != 1 || PyArray_DIMS(power)[0] != nVect){
 			PyErr_SetString(PyExc_ValueError, "power, if given must be a 1d numpy array with shape =  (numVectors,)");
 			return NULL;
 		}
