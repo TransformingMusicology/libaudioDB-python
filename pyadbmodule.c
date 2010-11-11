@@ -283,6 +283,38 @@ PyObject * _pyadb_insertFromFile(PyObject *self, PyObject *args, PyObject *keywd
 	
 }
 
+/* liszt - list strings, sizes, and time-points of all database entries
+ *
+ */
+PyObject* _pyadb_liszt(PyObject *self, PyObject *args)
+{
+  adb_t *current_db;
+  int ok,i;
+  PyObject * incoming = NULL;
+  PyObject * outgoing = NULL;
+  PyObject * newBits = NULL;  
+
+  ok = PyArg_ParseTuple(args, "O", &incoming);
+  
+  if (!ok) return 0;
+  current_db = (adb_t *)PyCObject_AsVoidPtr(incoming);
+  
+  adb_liszt_results_t *liszt = audiodb_liszt(current_db);
+
+  outgoing  = PyList_New((Py_ssize_t)0);
+  for (i=0 ; i<liszt->nresults ; i++){
+    newBits = Py_BuildValue("sI",liszt->entries[i].key,liszt->entries[i].nvectors);
+    if (PyList_Append(outgoing,  newBits)){
+      //error msg here
+      Py_XDECREF(newBits);
+      return NULL;
+    }
+    Py_DECREF(newBits);
+  }
+  audiodb_liszt_free_results(current_db, liszt);
+  return outgoing;
+}
+
 /* base query.  The nomenclature here is about a far away as pythonic as is possible. 
  * This should be taken care of via the higher level python structure
  * returns a dict that should be result ordered and key = result key
@@ -581,6 +613,8 @@ static PyMethodDef _pyadbMethods[] =
 	{ "_pyadb_insertFromFile", (PyCFunction)_pyadb_insertFromFile, METH_VARARGS | METH_KEYWORDS,
 	  "_pyadb_insertFromFile(adb_t *, features=featureFile, [power=powerfile | key=keystring | times=timingFile])->\
 	int return code (0 for sucess)"},
+	{ "_pyadb_liszt", (PyCFunction)_pyadb_liszt, METH_VARARGS,
+	  "_pyadb_liszt(adb_t*)->[[key1,numvecs1],[key2,numvecs2]...]"},
 	{ "_pyadb_queryFromKey", (PyCFunction)_pyadb_queryFromKey, METH_VARARGS | METH_KEYWORDS,
 	 "base query.  The nomenclature here is about a far away as pythonic as is possible.\n\
 This should be taken care of via the higher level python structure\n\

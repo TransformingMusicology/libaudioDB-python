@@ -90,7 +90,7 @@ class Pyadb(object):
 				args["features"] = args["features"].reshape((args["features"].shape[0],1))
 			args["nVect"], args["nDim"] = args["features"].shape
 			args["features"] = args["features"].flatten()
-			if(powerData != None):
+			if(self.hasPower and powerData != None):
 				if (len(args["power"].shape) == 1) : 
 					args["power"] = args["power"].reshape((args["power"].shape[0],1))
 				args["power"] = args["power"].flatten()
