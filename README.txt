@@ -16,7 +16,3 @@ Notes:
 Updated 23 June 2009, Ben Fields, b.fields@gold.ac.uk
 
 
-NOTES AND COMMENTS (mcasey@dartmouth.edu)
-
-* how to apply L2norm to a database: make default behaviour
-* query behaviour without L2norm doesn't seem right
