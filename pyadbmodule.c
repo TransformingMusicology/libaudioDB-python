@@ -15,8 +15,12 @@
 #include "audioDB_API.h"
 #include "numpy/arrayobject.h"
 
-static void _pyadb_close(void *ptr);
+#define ADB_HEADER_FLAG_L2NORM		(0x1U)
+#define ADB_HEADER_FLAG_POWER		(0x4U)
+#define ADB_HEADER_FLAG_TIMES		(0x20U)
+#define ADB_HEADER_FLAG_REFERENCES	(0x40U)
 
+static void _pyadb_close(void *ptr);
 
 /* create a new database */
 /* returns a struct or NULL on failure */
@@ -33,7 +37,7 @@ PyObject * _pyadb_create(PyObject *self, PyObject *args)
 	new_database = audiodb_create(path, datasize, ntracks, datadim);
 	if (!new_database) return 0;
 	
-	return PyCObject_FromVoidPtr( new_database, _pyadb_close);	
+	return PyCObject_FromVoidPtr( new_database, _pyadb_close);
 }
 
 /* open an existing database */
@@ -575,6 +579,121 @@ PyObject * _pyadb_queryFromKey(PyObject *self, PyObject *args, PyObject *keywds)
 }
 
 
+/* retrieval of inserted data 
+* returned numpy array has ndarray.shape = (numVectors, numDims)
+* array datatype needs to be doubles (float may work...)
+* if power reqeusted, it will be a 1d array of length numVectors
+* if times are requested, they will be a 1d array of length 2*nvectors
+*/
+
+// api call: 
+// typedef struct adb_datum {
+//   uint32_t nvectors;
+//   uint32_t dim;
+//   const char *key;
+//   double *data;
+//   double *power;
+//   double *times;
+// } adb_datum_t;
+
+//int audiodb_retrieve_datum(adb_t *, const char *, adb_datum_t *);
+//int audiodb_free_datum(adb_t *, adb_datum_t *);
+PyObject * _pyadb_retrieveDatum(PyObject *self, PyObject *args, PyObject *keywds)
+{
+	adb_t *current_db = NULL;
+	adb_status_t *status = NULL;
+	adb_datum_t *ins = NULL;
+	int ok=0, errtest=0;
+	unsigned features=0, powers=0, times=0;
+	PyObject *incoming = 0; // The ADB database
+	PyObject *outgoing = 0; // The PyArrayObject
+	const char *key = NULL;
+	static char *kwlist[]  = { "db", "key", "features", "powers", "times", NULL};
+	double * data;
+	int dims = 0;
+	npy_intp shape[2] = { 0, 0 };	
+
+	ok =  PyArg_ParseTupleAndKeywords(args, keywds, "Os|III", kwlist, &incoming, &key, &features, &powers, &times);
+	if (!ok){
+	  PyErr_SetString(PyExc_TypeError, "Failed at PyArg_ParseTupleAndKeywords");
+	  return NULL;
+	}
+
+	if(features+powers+times>1){
+	  PyErr_SetString(PyExc_TypeError, "Failed: you must specify only one of features, powers, or times");
+	  return NULL;	  
+	}
+
+	if(!(features||powers||times)){
+	  features=1; // default is to return features
+	}
+
+	current_db = (adb_t *)PyCObject_AsVoidPtr(incoming);
+	if (!current_db){
+	  PyErr_SetString(PyExc_TypeError, "Failed to convert open database to C-pointer");
+	  return NULL;
+	}
+	status = (adb_status_t*) malloc(sizeof(adb_status_t));
+	errtest = audiodb_status(current_db, status);
+	if(errtest){
+	  PyErr_SetString(PyExc_TypeError, "Failed: could not get status of passed ADB database");
+	  free(status);
+	  return NULL;
+	}
+
+	if(powers && !(status->flags&ADB_HEADER_FLAG_POWER)){
+	  PyErr_SetString(PyExc_TypeError, "Failed: powers requested but passed ADB database has no powers");
+	  free(status);
+	  return NULL;
+	}
+
+	if(times && !(status->flags&ADB_HEADER_FLAG_TIMES)){
+	  PyErr_SetString(PyExc_TypeError, "Failed: times requested but passed ADB database has no times");
+	  free(status);
+	  return NULL;
+	}	
+
+	ins = (adb_datum_t *)malloc(sizeof(adb_datum_t));
+	errtest = audiodb_retrieve_datum(current_db, key, ins); // retrieve data from adb via key
+	if (errtest){
+	  PyErr_SetString(PyExc_TypeError, "Failed to retrieve datum");
+	  free(ins);
+	  return NULL;
+	}
+
+	if(features){
+	  if(ins->dim>1){
+	    dims=2;
+	    shape[1]= ins->dim;	    
+	  }
+	  else{
+	    dims=1;
+	  }
+	  shape[0]= ins->nvectors;
+	  data = ins->data;
+	}
+	else if(powers){
+	  dims=1;
+	  shape[0]= ins->nvectors;
+	  data = ins->power;
+	}
+	else if(times){
+	  dims=1;
+	  shape[0]= 2 * ins->nvectors;
+	  data = ins->times;
+	}
+
+	outgoing = PyArray_SimpleNewFromData(dims, shape, NPY_DOUBLE, data);
+	if (!outgoing){
+	  PyErr_SetString(PyExc_TypeError, "Failed to convert retrieved datum to C-Array");
+	  return NULL;
+	}
+	// Apprently Python automatically INCREFs the data pointer, so we don't have to call
+	// audiodb_free_datum(current_db, ins);
+	free(status);
+	free(ins); // free the malloced adb_datum_t structure though
+	return outgoing; 
+}
 
 
 /* close a database */
@@ -610,6 +729,7 @@ static PyMethodDef _pyadbMethods[] =
 	if power is given, must be 1d array of length numVectors\n\
 	if times is given, must be 1d array of length 2*numVectors like this:\n\
 	int audiodb_insert_datum(adb_t *, const adb_datum_t *);"},
+	{"_pyadb_retrieveDatum", (PyCFunction)_pyadb_retrieveDatum, METH_VARARGS | METH_KEYWORDS, "_pyadb_retrieveDatum(adb_t *, key=keystring"},
 	{ "_pyadb_insertFromFile", (PyCFunction)_pyadb_insertFromFile, METH_VARARGS | METH_KEYWORDS,
 	  "_pyadb_insertFromFile(adb_t *, features=featureFile, [power=powerfile | key=keystring | times=timingFile])->\
 	int return code (0 for sucess)"},
