@@ -684,14 +684,16 @@ PyObject * _pyadb_retrieveDatum(PyObject *self, PyObject *args, PyObject *keywds
 	}
 
 	outgoing = PyArray_SimpleNewFromData(dims, shape, NPY_DOUBLE, data);
+	free(status);
+	free(ins); // free the malloced adb_datum_t structure though
+
 	if (!outgoing){
 	  PyErr_SetString(PyExc_TypeError, "Failed to convert retrieved datum to C-Array");
 	  return NULL;
 	}
 	// Apprently Python automatically INCREFs the data pointer, so we don't have to call
 	// audiodb_free_datum(current_db, ins);
-	free(status);
-	free(ins); // free the malloced adb_datum_t structure though
+
 	return outgoing; 
 }
 
