@@ -683,17 +683,26 @@ PyObject * _pyadb_retrieveDatum(PyObject *self, PyObject *args, PyObject *keywds
 	  data = ins->times;
 	}
 
-	outgoing = PyArray_SimpleNewFromData(dims, shape, NPY_DOUBLE, data);
-	free(status);
-	free(ins); // free the malloced adb_datum_t structure though
-
+	outgoing = PyArray_SimpleNew(dims, shape, NPY_DOUBLE);
 	if (!outgoing){
+	  free(status);
+	  free(ins); // free the malloced adb_datum_t structure though
+	  Py_XDECREF(outgoing);
 	  PyErr_SetString(PyExc_TypeError, "Failed to convert retrieved datum to C-Array");
 	  return NULL;
-	}
-	// Apprently Python automatically INCREFs the data pointer, so we don't have to call
-	// audiodb_free_datum(current_db, ins);
+	}	
 
+	/* Copy the data, this allows us to free the allocated memory and let
+	 * python do the subsequent garbage collection itself.
+	 */
+	int num_items = ins->nvectors * ins->dim;
+	double* p = (double*) PyArray_DATA(outgoing);
+	double* d = data;
+	while(num_items--)
+	  *p++ = *d++;	
+	audiodb_free_datum(current_db, ins); // free the source audiodb_datum
+	free(status); // free the malloced status object
+	free(ins); // free the malloced adb_datum_t structure though
 	return outgoing; 
 }
 

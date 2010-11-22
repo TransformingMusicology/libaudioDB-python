@@ -192,6 +192,26 @@ Only keys found in Pyadb.validConfigTerms should be defined.  Removing invalid t
 		def __repr__(self):
 			return repr(self.rawData)
 
+	def liszt(self):
+		'''run _pyadb_liszt to get a list of database keys'''
+		if self._db != None:
+			return _pyadb._pyadb_liszt(self._db)
+		else:
+			print "Error in liszt(): ADB database not defined"
+			return 0
+
+	def retrieve_datum(self, key, **args):
+		'''run _pyadb_retrieveDatum to retrieve data by key:
+		      features=True, to get features
+		      powers=True, to get Powers
+		      times=True, to get Times
+		'''
+		if self._db != None:
+			return _pyadb._pyadb_retrieveDatum(self._db, key=key, **args)
+		else:
+			print "Error in liszt(): ADB database not defined"
+			return 0
+		
 class untitledTests(unittest.TestCase):
 	def setUp(self):
 		pass
