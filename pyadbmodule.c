@@ -407,22 +407,22 @@ PyObject * _pyadb_queryFromKey(PyObject *self, PyObject *args, PyObject *keywds)
 	}
 	
 	//set up spec->params
-	if (strcmp(accuMode,"db")){
+	if (strcmp(accuMode,"db")==0){
 		spec->params.accumulation = ADB_ACCUMULATION_DB;
-	} else if (strcmp(accuMode,"track")){
+	} else if (strcmp(accuMode,"track")==0){
 		spec->params.accumulation = ADB_ACCUMULATION_PER_TRACK;
-	} else if (strcmp(accuMode,"one2one")){
+	} else if (strcmp(accuMode,"one2one")==0){
 		spec->params.accumulation = ADB_ACCUMULATION_ONE_TO_ONE;
 	} else{
 		PyErr_SetString(PyExc_ValueError, 
 			"Poorly specified distance mode. distance must either be \'db\', \'track\' or  \'one2one\'.\n");
 		return NULL;
 	}
-	if (strcmp(distMode, "dot")){
+	if (strcmp(distMode, "dot")==0){
 		spec->params.distance = ADB_DISTANCE_DOT_PRODUCT;
-	}else if (strcmp(distMode, "eucNorm")){
+	}else if (strcmp(distMode, "eucNorm")==0){
 		spec->params.distance = ADB_DISTANCE_EUCLIDEAN_NORMED;
-	}else if (strcmp(distMode, "euclidean")){
+	}else if (strcmp(distMode, "euclidean")==0){
 		spec->params.distance = ADB_DISTANCE_EUCLIDEAN;
 	}else{
 		PyErr_SetString(PyExc_ValueError, 
@@ -500,6 +500,353 @@ PyObject * _pyadb_queryFromKey(PyObject *self, PyObject *args, PyObject *keywds)
 		return NULL;
 	}
 	result = audiodb_query_spec(current_db, spec);
+	if (result == NULL){
+		PyErr_SetString(PyExc_RuntimeError, "Encountered an error while running the actual query, or there was nothing returned.\n");
+		return NULL;
+		}
+	if(strcmp(resFmt, "dict")==0){
+		outgoing  = PyDict_New();
+		for (i=0;i<result->nresults;i++){
+			thisKey = PyString_FromString(result->results[i].ikey);
+			if (!PyDict_Contains(outgoing, thisKey)){
+				newBits =  Py_BuildValue("[(dII)]",
+											result->results[i].dist, 
+											result->results[i].qpos, 
+											result->results[i].ipos);
+				if (PyDict_SetItem(outgoing, thisKey,newBits)){
+					printf("key : %s\ndist : %f\nqpos : %i\nipos : %i\n", result->results[i].ikey, result->results[i].dist, result->results[i].qpos, result->results[i].ipos);
+					PyErr_SetString(PyExc_AttributeError, "Error adding a tuple to the result dict\n");
+					Py_XDECREF(newBits);
+					return NULL;
+				}
+				Py_DECREF(newBits);
+			}else {
+				//the key already has a value, so we need to fetch the value, confirm it's a list and append another tuple to it.
+				currentValue = PyDict_GetItem(outgoing, thisKey);
+				if (!PyList_Check(currentValue)){
+					PyErr_SetString(PyExc_TypeError, "The result dictionary appears to be malformed.\n");
+					return NULL;
+				}
+				newBits = Py_BuildValue("dII",result->results[i].dist, 
+											result->results[i].qpos, 
+											result->results[i].ipos);
+				if (PyList_Append(currentValue,  newBits)){
+					//error msg here
+					Py_XDECREF(newBits);
+					return NULL;
+				}
+				if (PyDict_SetItem(outgoing, thisKey, newBits)){
+					PyErr_SetString(PyExc_AttributeError, "Error adding a tuple to the result dict\n");
+					Py_XDECREF(newBits);
+					return NULL;
+				}
+				Py_DECREF(newBits);
+		
+			}
+		}
+	}else if(strcmp(resFmt, "list")==0){
+		outgoing  = PyList_New((Py_ssize_t)0);
+		for (i=0;i<result->nresults;i++){
+			newBits = Py_BuildValue("sdII",result->results[i].ikey,
+										result->results[i].dist, 
+										result->results[i].qpos, 
+										result->results[i].ipos);
+			if (PyList_Append(outgoing,  newBits)){
+				//error msg here
+				Py_XDECREF(newBits);
+				return NULL;
+			}
+			Py_DECREF(newBits);
+		}
+		if(PyList_Reverse(outgoing)){//need to do this as things come off the accumulator backward.
+			PyErr_SetString(PyExc_RuntimeError,
+			"the reverse failed, hopefully a sensable error will follow.\nIf not, fix it.\n");
+			return NULL;
+			}
+	}else{
+		PyErr_SetString(PyExc_ValueError, 
+			"Poorly specified result mode. Result must be either \'dist\' or \'list\'.\n");
+		return NULL;
+	}
+	if (audiodb_query_free_results(current_db, spec, result)){
+		printf("bit of trouble freeing the result and spec...\ncheck for leaks.");
+	}
+	
+	return outgoing;
+	
+	
+	
+}
+
+/* Data query.  
+ * Returns a dict that is result ordered and key = result key
+ * value is a list of tuples one per result associated with that key, of the form:
+ *   (dist, qpos, ipos)
+ * api call:
+ * adb_query_results_t *audiodb_query_spec(adb_t *, const adb_query_spec_t *);
+ ***/
+PyObject * _pyadb_queryFromData(PyObject *self, PyObject *args, PyObject *keywds)
+{
+	adb_t *current_db;
+	adb_query_spec_t *spec;
+	adb_query_results_t *result;
+	int ok, exhaustive, falsePositives;
+	uint32_t i;
+	const char *accuMode = "db";
+	const char *distMode = "dot";
+	const char *resFmt = "dict";
+	uint32_t hop = 0;
+	double radius = 0;
+	double absThres = 0; 
+	double relThres = 0; 
+	double durRatio = 0;
+	PyObject *includeKeys = NULL;
+	PyObject *excludeKeys = NULL;
+	PyObject *incoming = NULL;
+	PyObject *outgoing = NULL;
+	PyObject *thisKey = NULL;
+	PyObject *currentValue = NULL;
+	PyObject *newBits = NULL;
+	npy_intp dims[2];
+	unsigned int nDims = 0;
+	unsigned int nVect = 0;
+	PyArrayObject *features = NULL;
+	PyArrayObject *power = NULL;
+	PyArrayObject *times = NULL;
+	PyArray_Descr *descr;
+	adb_status_t *status;
+
+	static char *kwlist[]  = { "db", "features", 
+				   "seqLength", 
+				   "seqStart", 
+				   "exhaustive", 
+				   "falsePositives",
+				   "accumulation",
+				   "distance",
+				   "npoints",//nearest neighbor points per track
+				   "ntracks",
+				   "includeKeys",
+				   "excludeKeys",
+				   "radius",
+				   "absThres",
+				   "relThres",
+				   "durRatio",
+				   "hopSize",
+				   "resFmt",
+				   "power",
+				   "times",
+				   NULL
+	};
+
+	spec = (adb_query_spec_t *)malloc(sizeof(adb_query_spec_t));
+	spec->qid.datum = (adb_datum_t *)malloc(sizeof(adb_datum_t));
+	result = (adb_query_results_t *)malloc(sizeof(adb_query_results_t));
+	
+	spec->qid.sequence_length = 16;
+	spec->qid.sequence_start = 0;
+	spec->qid.flags = 0;
+	spec->params.npoints = 1;
+	spec->params.ntracks = 100;//number of results returned in db mode
+	spec->refine.flags = 0;
+	
+	ok =  PyArg_ParseTupleAndKeywords(args, keywds, "OO!|iiiissIIOOddddIsO!O!", kwlist, 
+					  &incoming, &PyArray_Type, &features, 
+					  &spec->qid.sequence_length, 
+					  &spec->qid.sequence_start, 
+					  &exhaustive, &falsePositives,
+					  &accuMode,&distMode,
+					  &spec->params.npoints,
+					  &spec->params.ntracks,
+					  &includeKeys, &excludeKeys,
+					  &radius, &absThres, &relThres, &durRatio, &hop,
+					  &resFmt, 
+					  &PyArray_Type, &power, &PyArray_Type, &times
+												);
+	
+	if (!ok) {return NULL;}
+	current_db = (adb_t *)PyCObject_AsVoidPtr(incoming);
+
+	if (!features){ /* Sanity Check */
+	  PyErr_SetString(PyExc_ValueError, 
+			  "queryFromData: function requires feature data as numpy ndarray. PythonC required keyword check failed.\n");
+	  return NULL;
+	}
+
+	/* Check the dimensionality of passed data agrees with the passed database */
+	if(PyArray_NDIM(features)!=2){
+	  PyErr_SetString(PyExc_ValueError, 
+			  "queryFromData: passed features have incorrect shape, should be (nVecs, nDims).\n");
+	  return NULL;
+	}
+
+
+	if(power && PyArray_NDIM(power)!=1){
+	  PyErr_SetString(PyExc_ValueError, 
+			  "queryFromData: passed power have incorrect shape, should be (nVecs,).\n");
+	  return NULL;
+	}
+
+	if(times && PyArray_NDIM(times)!=1){
+	  PyErr_SetString(PyExc_ValueError, 
+			  "queryFromData: passed times have incorrect shape, should be (nVecs,).\n");
+	  return NULL;
+	}
+
+	status = (adb_status_t*) malloc(sizeof(adb_status_t));
+	int errtest = audiodb_status(current_db, status);
+	if(errtest){
+	  PyErr_SetString(PyExc_TypeError, "queryFromData failed: could not get status of passed ADB database");
+	  free(status);
+	  return NULL;
+	}
+
+	if(!PyArray_DIMS(features)[1]==status->dim){
+	  PyErr_SetString(PyExc_ValueError, 
+			  "queryFromData: passed features have incorrect dimensionality.\n");
+	  free(status);
+	  return NULL;
+	}
+
+	if(power && PyArray_DIMS(power)[0] != PyArray_DIMS(features)[0]){
+	  PyErr_SetString(PyExc_ValueError, 
+			  "queryFromData: passed power and features have incompatible nVecs dimension.\n");
+	  free(status);
+	  return NULL;
+	}
+
+	if(times && PyArray_DIMS(times)[0] != PyArray_DIMS(features)[0]){
+	  PyErr_SetString(PyExc_ValueError, 
+			  "queryFromData: passed times and features have incompatible nVecs dimension.\n");
+	  free(status);
+	  return NULL;
+	}
+
+	free(status);
+
+	
+	if (exhaustive){
+		spec->qid.flags = spec->qid.flags | ADB_QID_FLAG_EXHAUSTIVE;
+	}
+	if (falsePositives){
+		spec->qid.flags = spec->qid.flags | ADB_QID_FLAG_ALLOW_FALSE_POSITIVES;
+	}
+	
+	//set up spec->params
+	if (strcmp(accuMode,"db")==0){
+		spec->params.accumulation = ADB_ACCUMULATION_DB;
+	} else if (strcmp(accuMode,"track")==0){
+		spec->params.accumulation = ADB_ACCUMULATION_PER_TRACK;
+	} else if (strcmp(accuMode,"one2one")==0){
+		spec->params.accumulation = ADB_ACCUMULATION_ONE_TO_ONE;
+	} else{
+		PyErr_SetString(PyExc_ValueError, 
+			"Poorly specified distance mode. distance must either be \'db\', \'track\' or  \'one2one\'.\n");
+		return NULL;
+	}
+	if (strcmp(distMode, "dot")==0){
+		spec->params.distance = ADB_DISTANCE_DOT_PRODUCT;
+	}else if (strcmp(distMode, "eucNorm")==0){
+		spec->params.distance = ADB_DISTANCE_EUCLIDEAN_NORMED;
+	}else if (strcmp(distMode, "euclidean")==0){
+		spec->params.distance = ADB_DISTANCE_EUCLIDEAN;
+	}else{
+		PyErr_SetString(PyExc_ValueError, 
+			"Poorly specified distance mode. distance must either be \'dot\', \'eucNorm\' or  \'euclidean\'.\n");
+		return NULL;
+	}
+	
+	//set up spec->refine
+	//include/exclude keys
+	if (includeKeys){
+		if (!PyList_Check(includeKeys)){
+			PyErr_SetString(PyExc_TypeError, "Include keys must be specified as a list of strings.\n");
+			return NULL;
+		}
+		spec->refine.flags = spec->refine.flags | ADB_REFINE_INCLUDE_KEYLIST;
+		spec->refine.include.nkeys = (uint32_t)PyList_Size(includeKeys);
+		spec->refine.include.keys = (const char **)calloc(sizeof(const char *), spec->refine.include.nkeys);
+		for (i=0;i<spec->refine.include.nkeys;i++){
+			 if (PyString_Check(PyList_GetItem(includeKeys, (Py_ssize_t)i))){
+				spec->refine.include.keys[i] = PyString_AsString(PyList_GetItem(includeKeys, (Py_ssize_t)i));
+			}else{
+				PyErr_SetString(PyExc_TypeError, "Include keys must each be specified as a string.\nFound one that was not.\n");
+				return NULL;
+			}
+		}
+	}
+	if (excludeKeys){
+		if (!PyList_Check(excludeKeys)){
+			PyErr_SetString(PyExc_TypeError, "Exclude keys must be specified as a list of strings.\n");
+			return NULL;
+		}
+		spec->refine.flags = spec->refine.flags | ADB_REFINE_EXCLUDE_KEYLIST;
+		spec->refine.exclude.nkeys = (uint32_t)PyList_Size(excludeKeys);
+		spec->refine.exclude.keys = (const char **)calloc(sizeof(const char *), spec->refine.exclude.nkeys);
+		for (i=0;i<spec->refine.exclude.nkeys;i++){
+			 if (PyString_Check(PyList_GetItem(excludeKeys, (Py_ssize_t)i))){
+				spec->refine.exclude.keys[i] = PyString_AsString(PyList_GetItem(excludeKeys, (Py_ssize_t)i));
+			}else{
+				PyErr_SetString(PyExc_TypeError, "Exclude keys must each be specified as a string.\nFound one that was not.\n");
+				return NULL;
+			}
+		}
+	}
+	//the rest of spec->refine 
+	if (radius){
+		spec->refine.flags = spec->refine.flags | ADB_REFINE_RADIUS;
+		spec->refine.radius = radius;
+	}
+	if (absThres){
+		spec->refine.flags = spec->refine.flags | ADB_REFINE_ABSOLUTE_THRESHOLD;
+		spec->refine.absolute_threshold = absThres;
+	}
+	if (relThres){
+		spec->refine.flags = spec->refine.flags | ADB_REFINE_RELATIVE_THRESHOLD;
+		spec->refine.relative_threshold = relThres;
+	}
+	if (durRatio){
+		spec->refine.flags = spec->refine.flags | ADB_REFINE_DURATION_RATIO;
+		spec->refine.duration_ratio = durRatio;
+	}
+	if (hop){
+		spec->refine.flags = spec->refine.flags | ADB_REFINE_HOP_SIZE;
+                /* not ideal but a temporary bandage fix */
+		spec->refine.qhopsize = hop;
+		spec->refine.ihopsize = hop;
+	}
+
+	descr = PyArray_DescrFromType(NPY_DOUBLE);
+
+	if (PyArray_AsCArray(&features, &(spec->qid.datum->data), dims,  2, descr)){
+	  PyErr_SetString(PyExc_RuntimeError, "Trouble expressing the feature np array as a C array.");
+	  return NULL;
+	}
+	
+	if (power){
+	  if (PyArray_AsCArray(&power, &(spec->qid.datum->power), dims,  1, descr)){
+	    PyErr_SetString(PyExc_RuntimeError, "Trouble expressing the power np array as a C array.");
+	    return NULL;
+	  }
+	}else{
+	  spec->qid.datum->power=NULL;
+	}
+	
+	if (times){
+	  if (PyArray_AsCArray(&times, &(spec->qid.datum->times), dims,  1, descr)){
+	    PyErr_SetString(PyExc_RuntimeError, "Trouble expressing the times np array as a C array.");
+	    return NULL;
+	  }
+	}else{
+	  spec->qid.datum->times=NULL;
+	}
+
+	nVect = PyArray_DIMS(features)[0];
+	nDims = PyArray_DIMS(features)[1];
+	spec->qid.datum->nvectors = (uint32_t)nVect;
+	spec->qid.datum->dim = (uint32_t)nDims;
+
+	result = audiodb_query_spec(current_db, spec);
+
 	if (result == NULL){
 		PyErr_SetString(PyExc_RuntimeError, "Encountered an error while running the actual query, or there was nothing returned.\n");
 		return NULL;
@@ -772,6 +1119,8 @@ _pyadb_queryFromKey(adb_t *, query key,\n\
 					durRatio      = double time expansion/compresion ratio,\n\
 					hopSize       = int hopsize (1 by default)])->resultDict\n\
 					resFmt        = [\"list\"|\"dict\"](\"dict\" by default)"},
+	{"_pyadb_queryFromData", (PyCFunction)_pyadb_queryFromData, METH_VARARGS | METH_KEYWORDS,
+	 "data query. Required features=F (numpy ndarray). Optional: power=P (numpy 1d array), times=T (numpy 1d array)"},
 	{NULL,NULL, 0, NULL}
 };
 

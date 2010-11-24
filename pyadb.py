@@ -156,6 +156,26 @@ Only keys found in Pyadb.validConfigTerms should be defined.  Removing invalid t
 		elif featData:
 			raise NotImplementedError("direct data query not yet implemented.  Sorry.")
 		return Pyadb.Result(result, self.configQuery)
+
+	def query_data(self, featData=None, powerData=None, timesData=None, strictConfig=True):
+		"""query the database using numpy arrays. required data: featData, optional data: [powerData, timesData]Query parameters as defined in self.configQuery. For details on this consult the doc string in the configCheck method."""
+		if not self.configCheck():
+			if strictConfig:
+				raise ValueError("configQuery dict contains unsupported terms and strict configure mode is on.\n\
+Only keys found in Pyadb.validConfigTerms may be defined")
+			else:
+				print "configQuery dict contains unsupported terms and strict configure mode is off.\n\
+Only keys found in Pyadb.validConfigTerms should be defined.  Removing invalid terms and proceeding..."
+				self.configCheck(scrub=True)
+		cq = self.configQuery.copy()
+		if (featData==None):
+			raise Usage("query requires featData to be defined.")
+		if(powerData!=None):
+			cq['power']=powerData
+		if(timesData!=None):
+			cq['times']=timesData
+		result = _pyadb._pyadb_queryFromData(self._db, featData, **cq)
+		return Pyadb.Result(result, self.configQuery)
 	
 	def status(self):
 		'''update attributes and return them as a dict'''
