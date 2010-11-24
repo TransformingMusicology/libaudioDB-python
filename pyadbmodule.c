@@ -208,8 +208,8 @@ PyObject * _pyadb_insertFromArray(PyObject *self, PyObject *args, PyObject *keyw
 			return NULL;
 		}
 		// times = (PyArrayObject *)PyCObject_AsVoidPtr(incomingTime);
-		if (PyArray_NDIM(times) != 1 || PyArray_DIMS(times)[0] == (nVect*2)){
-			PyErr_SetString(PyExc_ValueError, "times, if given must be a 1d numpy array with shape =  (numVectors,)");
+		if (PyArray_NDIM(times) != 1 || PyArray_DIMS(times)[0] != (nVect*2)){
+			PyErr_SetString(PyExc_ValueError, "times, if given must be a 1d numpy array with shape =  (numVectors*2,)");
 			return NULL;
 		}
 	}

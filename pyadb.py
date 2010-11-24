@@ -72,11 +72,13 @@ class Pyadb(object):
 				args["power"]=powerFile
 			elif featData.any():
 				args["power"]=powerData
+		if timesData != None:
+			self.hasTimes=True
 		if self.hasTimes:
 			if featFile:
 				args["times"]=timesFile
 			elif timesData.any():
-				pass
+				args["times"]=timesData
 		if key:
 			args["key"]=str(key)
 		if featFile:
@@ -94,6 +96,11 @@ class Pyadb(object):
 				if (len(args["power"].shape) == 1) : 
 					args["power"] = args["power"].reshape((args["power"].shape[0],1))
 				args["power"] = args["power"].flatten()
+			if(self.hasTimes and timesData != None):
+				if (len(args["times"].shape) == 1) : 
+					args["times"] = args["times"].reshape((args["times"].shape[0],1))
+				args["times"] = args["times"].flatten()
+
 			print "args: " + str(args)
 			ok = _pyadb._pyadb_insertFromArray(**args)
 			if not (ok==0):
