@@ -1011,7 +1011,7 @@ PyObject * _pyadb_retrieveDatum(PyObject *self, PyObject *args, PyObject *keywds
 	if(features){
 	  if(ins->dim>1){
 	    dims=2;
-	    shape[1]= ins->dim;	    
+	    shape[1]= ins->dim;
 	  }
 	  else{
 	    dims=1;
@@ -1042,7 +1042,10 @@ PyObject * _pyadb_retrieveDatum(PyObject *self, PyObject *args, PyObject *keywds
 	/* Copy the data, this allows us to free the allocated memory and let
 	 * python do the subsequent garbage collection itself.
 	 */
-	int num_items = ins->nvectors * ins->dim;
+	int num_items = ins->nvectors;
+	if(dims>1){
+	  num_items *= shape[1];
+	}		    
 	double* p = (double*) PyArray_DATA(outgoing);
 	double* d = data;
 	while(num_items--)
