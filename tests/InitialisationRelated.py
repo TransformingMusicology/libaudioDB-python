@@ -39,7 +39,7 @@ class CreateADBTests(unittest.TestCase):
 		self.assert_(len(result.rawData) == 1)
 		self.assert_(result.rawData.has_key("testfeature"))
 		self.assert_(len(result.rawData["testfeature"]) == 1)
-		self.assert_(result.rawData["testfeature"][0] == (float("-inf"), 0,0))
+		self.assert_(result.rawData["testfeature"][0] == (1.0, 0,0))
 		os.remove(self.adb.path)#delete the db
 	def test_1DinsertionFromArraySelfQuery(self):
 		test1 = np.ones(1)
@@ -50,7 +50,7 @@ class CreateADBTests(unittest.TestCase):
 		self.assert_(len(result.rawData) == 1)
 		self.assert_(result.rawData.has_key("testfeature"))
 		self.assert_(len(result.rawData["testfeature"]) == 1)
-		self.assert_(result.rawData["testfeature"][0] == (float("-inf"), 0,0))
+		self.assert_(result.rawData["testfeature"][0] == (1.0, 0,0))
 		
 
 
