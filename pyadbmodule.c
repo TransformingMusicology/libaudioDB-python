@@ -218,13 +218,13 @@ PyObject * _pyadb_insertFromArray(PyObject *self, PyObject *args, PyObject *keyw
 	//verify that the data to be inserted is the correct size for the database.
 	
 	ins = (adb_datum_t *)malloc(sizeof(adb_datum_t));
-	if (PyArray_AsCArray(&features, &(ins->data), dims,  1, descr)){
+	if (PyArray_AsCArray((PyObject**)&features, &(ins->data), dims,  1, descr)){
 		PyErr_SetString(PyExc_RuntimeError, "Trouble expressing the feature np array as a C array.");
 		return NULL;
 	}
 	
 	if (power){
-		if (PyArray_AsCArray(&power, &(ins->power), dims,  1, descr)){
+	  if (PyArray_AsCArray((PyObject**)&power, &(ins->power), dims,  1, descr)){
 			PyErr_SetString(PyExc_RuntimeError, "Trouble expressing the power np array as a C array.");
 			return NULL;
 		}
@@ -233,7 +233,7 @@ PyObject * _pyadb_insertFromArray(PyObject *self, PyObject *args, PyObject *keyw
 	}
 	
 	if (times){
-		if (PyArray_AsCArray(&times, &(ins->times), dims,  1, descr)){
+	  if (PyArray_AsCArray((PyObject**)&times, &(ins->times), dims,  1, descr)){
 			PyErr_SetString(PyExc_RuntimeError, "Trouble expressing the times np array as a C array.");
 			return NULL;
 		}
@@ -607,13 +607,11 @@ PyObject * _pyadb_queryFromData(PyObject *self, PyObject *args, PyObject *keywds
 	PyObject *thisKey = NULL;
 	PyObject *currentValue = NULL;
 	PyObject *newBits = NULL;
-	npy_intp dims[2];
 	unsigned int nDims = 0;
 	unsigned int nVect = 0;
 	PyArrayObject *features = NULL;
 	PyArrayObject *power = NULL;
 	PyArrayObject *times = NULL;
-	PyArray_Descr *descr;
 	adb_status_t *status;
 
 	static char *kwlist[]  = { "db", "features", 
@@ -722,7 +720,6 @@ PyObject * _pyadb_queryFromData(PyObject *self, PyObject *args, PyObject *keywds
 	}
 
 	free(status);
-
 	
 	if (exhaustive){
 		spec->qid.flags = spec->qid.flags | ADB_QID_FLAG_EXHAUSTIVE;
@@ -815,27 +812,16 @@ PyObject * _pyadb_queryFromData(PyObject *self, PyObject *args, PyObject *keywds
 		spec->refine.ihopsize = hop;
 	}
 
-	descr = PyArray_DescrFromType(NPY_DOUBLE);
-
-	if (PyArray_AsCArray(&features, &(spec->qid.datum->data), dims,  2, descr)){
-	  PyErr_SetString(PyExc_RuntimeError, "Trouble expressing the feature np array as a C array.");
-	  return NULL;
-	}
+	spec->qid.datum->data = (double*) features->data;
 	
 	if (power){
-	  if (PyArray_AsCArray(&power, &(spec->qid.datum->power), dims,  1, descr)){
-	    PyErr_SetString(PyExc_RuntimeError, "Trouble expressing the power np array as a C array.");
-	    return NULL;
-	  }
+	  spec->qid.datum->power = (double*) power->data;
 	}else{
 	  spec->qid.datum->power=NULL;
 	}
 	
 	if (times){
-	  if (PyArray_AsCArray(&times, &(spec->qid.datum->times), dims,  1, descr)){
-	    PyErr_SetString(PyExc_RuntimeError, "Trouble expressing the times np array as a C array.");
-	    return NULL;
-	  }
+	  spec->qid.datum->times = (double*) times->data;
 	}else{
 	  spec->qid.datum->times=NULL;
 	}
@@ -956,7 +942,7 @@ PyObject * _pyadb_retrieveDatum(PyObject *self, PyObject *args, PyObject *keywds
 	PyObject *outgoing = 0; // The PyArrayObject
 	const char *key = NULL;
 	static char *kwlist[]  = { "db", "key", "features", "powers", "times", NULL};
-	double * data;
+	double * data = NULL;
 	int dims = 0;
 	npy_intp shape[2] = { 0, 0 };	
 
@@ -1127,7 +1113,7 @@ _pyadb_queryFromKey(adb_t *, query key,\n\
 	{NULL,NULL, 0, NULL}
 };
 
-void init_pyadb()
+void init_pyadb(void)
 {
 	Py_InitModule3("_pyadb", _pyadbMethods, "internal c bindings for audioDB.  Use pyadb for pythonic access to adb.");
 	import_array();
