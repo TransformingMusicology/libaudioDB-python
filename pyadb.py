@@ -116,7 +116,7 @@ class Pyadb(object):
 		exhaustive    : boolean - True for exhaustive (false by default),\n\
 		falsePositives: boolean - True to keep fps (false by defaults),\n\
 		accumulation  : [\"db\"|\"track\"|\"one2one\"] (\"db\" by default),\n\
-		distance      : [\"dot\"|\"eucNorm\"|\"euclidean\"] (\"dot\" by default),\n\
+		distance      : [\"dot\"|\"eucNorm\"|\"euclidean\"|\"kullback\"] (\"dot\" by default),\n\
 		npoints       : int number of points per track,\n\
 		ntracks       : max number of results returned in db accu mode,\n\
 		includeKeys   : list of strings to include (use all by default),\n\

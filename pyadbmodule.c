@@ -419,15 +419,17 @@ PyObject * _pyadb_queryFromKey(PyObject *self, PyObject *args, PyObject *keywds)
 		return NULL;
 	}
 	if (strcmp(distMode, "dot")==0){
-		spec->params.distance = ADB_DISTANCE_DOT_PRODUCT;
+	        spec->params.distance = ADB_DISTANCE_DOT_PRODUCT;
 	}else if (strcmp(distMode, "eucNorm")==0){
-		spec->params.distance = ADB_DISTANCE_EUCLIDEAN_NORMED;
+	        spec->params.distance = ADB_DISTANCE_EUCLIDEAN_NORMED;
 	}else if (strcmp(distMode, "euclidean")==0){
-		spec->params.distance = ADB_DISTANCE_EUCLIDEAN;
+	        spec->params.distance = ADB_DISTANCE_EUCLIDEAN;
+	}else if (strcmp(distMode, "kullback")==0){
+	        spec->params.distance = ADB_DISTANCE_KULLBACK_LEIBLER_DIVERGENCE;
 	}else{
-		PyErr_SetString(PyExc_ValueError, 
-			"Poorly specified distance mode. distance must either be \'dot\', \'eucNorm\' or  \'euclidean\'.\n");
-		return NULL;
+	        PyErr_SetString(PyExc_ValueError, 
+			  "Poorly specified distance mode. distance must either be \'dot\', \'eucNorm\' ,\'euclidean\' or \'kullback\'.\n");
+	        return NULL;
 	}
 	
 	//set up spec->refine
@@ -746,9 +748,11 @@ PyObject * _pyadb_queryFromData(PyObject *self, PyObject *args, PyObject *keywds
 		spec->params.distance = ADB_DISTANCE_EUCLIDEAN_NORMED;
 	}else if (strcmp(distMode, "euclidean")==0){
 		spec->params.distance = ADB_DISTANCE_EUCLIDEAN;
+	}else if (strcmp(distMode, "kullback")==0){
+		spec->params.distance = ADB_DISTANCE_KULLBACK_LEIBLER_DIVERGENCE;
 	}else{
 		PyErr_SetString(PyExc_ValueError, 
-			"Poorly specified distance mode. distance must either be \'dot\', \'eucNorm\' or  \'euclidean\'.\n");
+			  "Poorly specified distance mode. distance must either be \'dot\', \'eucNorm\' ,\'euclidean\' or \'kullback\'.\n");
 		return NULL;
 	}
 	
