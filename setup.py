@@ -27,9 +27,9 @@ from os.path import join
 module1 = Extension('_pyadb',
 					define_macros = [('MAJOR_VERSION', '0'),
                                      ('MINOR_VERSION', '2')],
-                    include_dirs = ['/opt/local/include', '../../', join(numpyBase[0],'core/include')],
+                    include_dirs = ['include', join(numpyBase[0],'core/include')],
                     libraries = ['audioDB'],
-                    library_dirs = ['../../', '/opt/local/lib'],
+                    library_dirs = [],
                     sources = ['pyadbmodule.c'])
 					
 
