@@ -12,7 +12,7 @@
 #include <string.h>
 #include "Python.h"
 #include "structmember.h"
-#include "audioDB_API.h"
+#include "audioDB/audioDB_API.h"
 #include "numpy/arrayobject.h"
 
 #define ADB_HEADER_FLAG_L2NORM		(0x1U)
