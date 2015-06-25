@@ -24,6 +24,7 @@ from distutils.core import setup, Extension
 from  numpy import __path__ as numpyBase
 from os.path import join
 import pkgconfig
+import sys
 
 if not pkgconfig.installed('audioDB', '0.0'):
     print 'libaudioDB not found'
@@ -32,9 +33,9 @@ if not pkgconfig.installed('audioDB', '0.0'):
 adblibs = pkgconfig.parse('audioDB')
 
 module1 = Extension('_pyadb',
-					define_macros = [('MAJOR_VERSION', '0'),
+			define_macros = [('MAJOR_VERSION', '0'),
                                      ('MINOR_VERSION', '2')],
-                    include_dirs = [join(numpyBase[0],'core/include')],
+                    include_dirs = list(adblibs['include_dirs']) + [join(numpyBase[0],'core/include')],
                     libraries = list(adblibs['libraries']),
                     library_dirs = list(adblibs['library_dirs']),
                     sources = ['pyadbmodule.c'])
