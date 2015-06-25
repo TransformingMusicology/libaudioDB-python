@@ -58,10 +58,10 @@ def _load(filename=None, withtimes=False, hastimes=None):
     dims = _dims(filename, hastimes=hastimes)
     if hastimes:
         fstcol = 1
-        lstcol = dims
+        lstcol = dims + 1
     else:
         fstcol = 0
-        lstcol = dims - 1
+        lstcol = dims
 
     if fstcol == lstcol:
         cols = (fstcol,)
