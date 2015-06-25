@@ -69,7 +69,7 @@ def _load(filename=None, withtimes=False, hastimes=None):
         cols = tuple(range(fstcol, lstcol))
 
     # load the features from the CSV file
-    features = np.genfromtxt(filename, delimiter=',', usecols=cols).flatten()
+    features = np.genfromtxt(filename, delimiter=',', usecols=cols)
     if withtimes:
         times = np.genfromtxt(filename, delimiter=',', usecols=(0,)).flatten()
     else:
