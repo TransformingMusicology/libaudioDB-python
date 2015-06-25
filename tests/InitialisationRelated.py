@@ -12,7 +12,7 @@ Created by Ben Fields on 2010-01-11.
 
 import sys
 import os,os.path
-import pyadb
+from pyadb import adb
 import numpy as np
 import struct
 import unittest
@@ -20,10 +20,10 @@ import unittest
 
 class CreateADBTests(unittest.TestCase):
 	def setUp(self):
-		self.adb = pyadb.Pyadb("test.adb")
+		self.adb = adb.Pyadb("test.adb")
 	def test_DBcreation(self):
 		self.assert_(os.path.exists(self.adb.path))
-		self.assertRaises(TypeError, pyadb.Pyadb)
+		self.assertRaises(TypeError, adb.Pyadb)
 	def test_DBstatus(self):
 		try:
 			self.adb.status()

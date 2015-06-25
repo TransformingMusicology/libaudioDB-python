@@ -39,6 +39,6 @@ setup (name = 'pyadb',
 	   maintainer = 'Benjamin Fields',
 	   maintainer_email = 'b.fields@gold.ac.uk',
        ext_modules = [module1],
-       py_modules=['pyadb'],
+       py_modules=['pyadb', 'pyadb.adb', 'pyadb.utils', 'pyadb.utils.vamp'],
 )
 

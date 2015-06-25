@@ -5,7 +5,7 @@ import csv
 import sys
 import urllib
 import web
-from pyadb import *
+from pyadb.adb import *
 import simplejson as json
 import tempfile
 import subprocess

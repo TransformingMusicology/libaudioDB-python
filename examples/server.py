@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-from pyadb import *
+from pyadb.adb import *
 import web
 import json
 import sys
