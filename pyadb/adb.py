@@ -101,7 +101,6 @@ class Pyadb(object):
 					args["times"] = args["times"].reshape((args["times"].shape[0],1))
 				args["times"] = args["times"].flatten()
 
-			print "args: " + str(args)
 			ok = _pyadb._pyadb_insertFromArray(**args)
 			if not (ok==0):
 				raise RuntimeError("Direct data insertion failed for an unknown reason. err code = %i"%ok)
