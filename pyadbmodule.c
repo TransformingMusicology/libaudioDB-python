@@ -36,7 +36,10 @@ PyObject * _pyadb_create(PyObject *self, PyObject *args)
 	if (!ok) return 0;
 	new_database = audiodb_create(path, datasize, ntracks, datadim);
 	if (!new_database) return 0;
-	
+	if(audiodb_l2norm(new_database)) {
+          unlink(path);
+          return 0;
+        }
 	return PyCObject_FromVoidPtr( new_database, _pyadb_close);
 }
 
